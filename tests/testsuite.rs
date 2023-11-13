@@ -6,7 +6,7 @@ use std::fs;
 use std::path;
 use test_generator::test_resources;
 
-use jsonata::{ArrayFlags, JsonAta, Value};
+use jsonata_rs::{ArrayFlags, JsonAta, Value};
 
 const SKIP: &[&str] = &[
     // The order of object properties in the output is not deterministic,

@@ -2,7 +2,7 @@ use bumpalo::Bump;
 use clap::Parser;
 use std::path::PathBuf;
 
-use jsonata::JsonAta;
+use jsonata_rs::JsonAta;
 
 /// A command line JSON processor using JSONata
 #[derive(Parser, Debug)]
