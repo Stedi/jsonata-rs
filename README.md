@@ -36,7 +36,7 @@ Then you can evaluate an expression with JSON input like this:
 
 ```rust
 use bumpalo::Bump;
-use jsonata-rs::JsonAta;
+use jsonata_rs::JsonAta;
 
 fn main() {
     // Create an arena for allocating values, this will go away in future except for advanced use cases
