@@ -1,12 +1,12 @@
 [package]
-name = "jsonata"
+name = "jsonata-rs"
 version = "0.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-authors = ["Johan Venter <johan.venter@gmail.com>"]
+authors = ["Johan Venter <johan.venter@gmail.com>", "stedi developers"]
 description = "An (incomplete) implementation of JSONata in Rust"
-homepage = "https://github.com/johanventer/jsonata-rust/"
-repository = "https://github.com/johanventer/jsonata-rust/"
+homepage = "https://github.com/Stedi/jsonata-rs/"
+repository = "https://github.com/Stedi/jsonata-rs/"
 keywords = ["jsonata", "json"]
 categories = ["command-line-utilities", "compilers", "parser-implementations"]
 

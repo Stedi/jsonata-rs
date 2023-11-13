@@ -25,7 +25,7 @@ First, add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-jsonata = "0"
+jsonata-rs = "0"
 bumpalo = "3.9.1"
 ```
 
@@ -33,7 +33,7 @@ Then you can evaluate an expression with JSON input like this:
 
 ```rust
 use bumpalo::Bump;
-use jsonata::JsonAta;
+use jsonata_rs::JsonAta;
 
 fn main() {
     // Create an arena for allocating values, this will go away in future except for advanced use cases
