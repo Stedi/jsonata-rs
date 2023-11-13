@@ -1,5 +1,8 @@
 # jsonata-rs
 
+[<img alt="crates.io" src="https://img.shields.io/crates/v/jsonata-rs?logo=rust&style=for-the-badge" height=22>](https://crates.io/crates/jsonata-rs)
+[<img alt="docs.rs" src="https://img.shields.io/docsrs/jsonata-rs?label=docs.rs&logo=docs.rs&style=for-the-badge" height=22>](https://docs.rs/jsonata-rs)
+
 An (incomplete) implementation of [JSONata](https://jsonata.org) in Rust. Stedi's fork of [jsonata-rust](https://github.com/johanventer/jsonata-rust).
 
 **Alpha version. All internal and external interfaces are considered unstable and subject to change without notice.**
@@ -33,7 +36,7 @@ Then you can evaluate an expression with JSON input like this:
 
 ```rust
 use bumpalo::Bump;
-use jsonata_rs::JsonAta;
+use jsonata-rs::JsonAta;
 
 fn main() {
     // Create an arena for allocating values, this will go away in future except for advanced use cases
