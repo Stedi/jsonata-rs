@@ -62,7 +62,7 @@ fn main() {
 There's also a basic CLI tool:
 
 ```
-# cargo install jsonata
+# cargo install jsonata-rs
 
 # jsonata "1 + 1"
 2
@@ -75,7 +75,7 @@ The expression and input can be specified on the command line, but that requires
 
 ```
 # jsonata --help
-jsonata 0.0.0
+jsonata-rs
 A command line JSON processor using JSONata
 
 USAGE:
