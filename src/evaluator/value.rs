@@ -542,6 +542,7 @@ impl<'a> Value<'a> {
     //
     // Need to think up another way, but the whole evaluation pipeline is based on the immutability of Value,
     // so something needs to give.
+    #[allow(invalid_reference_casting)]
     pub fn __very_unsafe_make_mut(&'a self) -> &'a mut Value<'a> {
         unsafe {
             let const_ptr = self as *const Value<'a>;
