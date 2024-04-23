@@ -1,9 +1,9 @@
 use std::borrow::Cow;
+use std::collections::{hash_map, HashMap};
 
 use bitflags::bitflags;
 use bumpalo::boxed::Box;
 use bumpalo::Bump;
-use hashbrown::HashMap;
 
 use super::frame::Frame;
 use super::functions::FunctionContext;
@@ -326,7 +326,7 @@ impl<'a> Value<'a> {
         }
     }
 
-    pub fn entries(&self) -> hashbrown::hash_map::Iter<'_, String, &'a Value> {
+    pub fn entries(&self) -> hash_map::Iter<'_, String, &'a Value> {
         match self {
             Value::Object(map) => map.iter(),
             _ => panic!("Not an object"),
