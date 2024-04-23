@@ -210,6 +210,41 @@ pub fn fn_boolean<'a>(
     })
 }
 
+pub fn fn_map<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
+    let arr = &args[0];
+    let func = &args[1];
+
+    if arr.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    let arr = Value::wrap_in_array_if_needed(context.arena, arr, ArrayFlags::empty());
+
+    assert_arg!(func.is_function(), context, 2);
+
+    let result = Value::array(context.arena, ArrayFlags::SEQUENCE);
+
+    for (index, item) in arr.members().enumerate() {
+        let args = Value::array(context.arena, ArrayFlags::empty());
+        let arity = func.arity();
+
+        args.push(item);
+        if arity >= 2 {
+            args.push(Value::number(context.arena, index as f64));
+        }
+        if arity >= 3 {
+            args.push(arr);
+        }
+
+        let mapped = context.evaluate_function(func, args)?;
+        if !mapped.is_undefined() {
+            result.push(mapped);
+        }
+    }
+
+    Ok(result)
+}
+
 pub fn fn_filter<'a>(
     context: FunctionContext<'a, '_>,
     args: &'a Value<'a>,

@@ -84,6 +84,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("length", 1, fn_length);
         bind_native!("lookup", 2, fn_lookup);
         bind_native!("lowercase", 1, fn_lowercase);
+        bind_native!("map", 2, fn_map);
         bind_native!("max", 1, fn_max);
         bind_native!("min", 1, fn_min);
         bind_native!("not", 1, fn_not);
