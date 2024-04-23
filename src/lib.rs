@@ -96,6 +96,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("sqrt", 1, fn_sqrt);
         bind_native!("substring", 3, fn_substring);
         bind_native!("sum", 1, fn_sum);
+        bind_native!("trim", 1, fn_trim);
         bind_native!("uppercase", 1, fn_uppercase);
 
         let chain_ast = Some(parser::parse(

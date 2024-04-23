@@ -203,9 +203,9 @@ pub fn fn_boolean<'a>(
                 Value::bool(context.arena, false)
             }
         },
-        Value::Lambda { .. }
-        | Value::NativeFn { .. }
-        | Value::Transformer { .. } => Value::bool(context.arena, false),
+        Value::Lambda { .. } | Value::NativeFn { .. } | Value::Transformer { .. } => {
+            Value::bool(context.arena, false)
+        }
         Value::Range(ref range) => Value::bool(context.arena, !range.is_empty()),
     })
 }
@@ -324,10 +324,7 @@ pub fn fn_string<'a>(
     }
 }
 
-pub fn fn_not<'a>(
-    context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
-) -> Result<&'a Value<'a>> {
+pub fn fn_not<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
     let arg = &args[0];
 
     Ok(if arg.is_undefined() {
@@ -359,10 +356,33 @@ pub fn fn_uppercase<'a>(
     if !arg.is_string() {
         Ok(Value::undefined())
     } else {
-        Ok(Value::string(
-            context.arena,
-            arg.as_str().to_uppercase(),
-        ))
+        Ok(Value::string(context.arena, arg.as_str().to_uppercase()))
+    }
+}
+
+pub fn fn_trim<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
+    let arg = &args[0];
+
+    if !arg.is_string() {
+        Ok(Value::undefined())
+    } else {
+        let orginal = arg.as_str();
+        let mut words = orginal.split_whitespace();
+        let trimmed = match words.next() {
+            None => String::new(),
+            Some(first_word) => {
+                // estimate lower bound of capacity needed
+                let (lower, _) = words.size_hint();
+                let mut result = String::with_capacity(lower);
+                result.push_str(first_word);
+                for word in words {
+                    result.push(' ');
+                    result.push_str(word);
+                }
+                result
+            }
+        };
+        Ok(Value::string(context.arena, trimmed))
     }
 }
 
@@ -427,10 +447,7 @@ pub fn fn_substring<'a>(
     }
 }
 
-pub fn fn_abs<'a>(
-    context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
-) -> Result<&'a Value<'a>> {
+pub fn fn_abs<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
     let arg = &args[0];
 
     if arg.is_undefined() {
@@ -457,10 +474,7 @@ pub fn fn_floor<'a>(
     Ok(Value::number(context.arena, arg.as_f64().floor()))
 }
 
-pub fn fn_ceil<'a>(
-    context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
-) -> Result<&'a Value<'a>> {
+pub fn fn_ceil<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
     let arg = &args[0];
 
     if arg.is_undefined() {
@@ -529,10 +543,7 @@ pub fn fn_count<'a>(
     ))
 }
 
-pub fn fn_max<'a>(
-    context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
-) -> Result<&'a Value<'a>> {
+pub fn fn_max<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
 
     let arg = &args[0];
@@ -553,10 +564,7 @@ pub fn fn_max<'a>(
     Ok(Value::number(context.arena, max))
 }
 
-pub fn fn_min<'a>(
-    context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
-) -> Result<&'a Value<'a>> {
+pub fn fn_min<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
 
     let arg = &args[0];
@@ -577,10 +585,7 @@ pub fn fn_min<'a>(
     Ok(Value::number(context.arena, min))
 }
 
-pub fn fn_sum<'a>(
-    context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
-) -> Result<&'a Value<'a>> {
+pub fn fn_sum<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
 
     let arg = &args[0];
@@ -699,10 +704,7 @@ pub fn fn_length<'a>(
     ))
 }
 
-pub fn fn_sqrt<'a>(
-    context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
-) -> Result<&'a Value<'a>> {
+pub fn fn_sqrt<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
 
     let arg1 = &args[0];
@@ -769,10 +771,7 @@ pub fn fn_reverse<'a>(
     Ok(result)
 }
 
-pub fn fn_join<'a>(
-    context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
-) -> Result<&'a Value<'a>> {
+pub fn fn_join<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
     max_args!(context, args, 2);
 
     let strings = &args[0];
@@ -848,17 +847,13 @@ pub fn fn_sort<'a, 'e>(
     } else {
         let comparator = args.get_member(1);
         assert_arg!(comparator.is_function(), context, 2);
-        merge_sort(
-            unsorted,
-            &|a: &'a Value<'a>, b: &'a Value<'a>| {
-                let args =
-                    Value::array_with_capacity(context.arena, 2, ArrayFlags::empty());
-                args.push(a);
-                args.push(b);
-                let result = context.evaluate_function(comparator, args)?;
-                Ok(result.is_truthy())
-            },
-        )?
+        merge_sort(unsorted, &|a: &'a Value<'a>, b: &'a Value<'a>| {
+            let args = Value::array_with_capacity(context.arena, 2, ArrayFlags::empty());
+            args.push(a);
+            args.push(b);
+            let result = context.evaluate_function(comparator, args)?;
+            Ok(result.is_truthy())
+        })?
     };
 
     let result = Value::array_with_capacity(context.arena, sorted.len(), arr.get_flags());
@@ -867,10 +862,7 @@ pub fn fn_sort<'a, 'e>(
     Ok(result)
 }
 
-pub fn merge_sort<'a, F>(
-    items: Vec<&'a Value<'a>>,
-    comp: &F,
-) -> Result<Vec<&'a Value<'a>>>
+pub fn merge_sort<'a, F>(items: Vec<&'a Value<'a>>, comp: &F) -> Result<Vec<&'a Value<'a>>>
 where
     F: Fn(&'a Value<'a>, &'a Value<'a>) -> Result<bool>,
 {
