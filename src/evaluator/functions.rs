@@ -1,3 +1,4 @@
+use base64::Engine;
 use std::borrow::Borrow;
 
 use bumpalo::Bump;
@@ -911,4 +912,42 @@ where
     let left = merge_sort(left.to_vec(), comp)?;
     let right = merge_sort(right.to_vec(), comp)?;
     merge(&left, &right, comp)
+}
+
+pub fn fn_base64_encode<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &'a Value<'a>,
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 1);
+    let arg = &args[0];
+    if arg.is_undefined() {
+        return Ok(Value::undefined());
+    }
+    assert_arg!(arg.is_string(), context, 1);
+
+    let base64 = base64::engine::general_purpose::STANDARD;
+
+    let encoded = base64.encode(arg.as_str().as_bytes());
+
+    Ok(Value::string(context.arena, encoded))
+}
+
+pub fn fn_base64_decode<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &'a Value<'a>,
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 1);
+    let arg = &args[0];
+    if arg.is_undefined() {
+        return Ok(Value::undefined());
+    }
+    assert_arg!(arg.is_string(), context, 1);
+
+    let base64 = base64::engine::general_purpose::STANDARD;
+
+    let decoded = base64.decode(arg.as_str().as_bytes());
+    let data = decoded.map_err(|e| Error::D3137Error(e.to_string()))?;
+    let decoded = String::from_utf8(data).map_err(|e| Error::D3137Error(e.to_string()))?;
+
+    Ok(Value::string(context.arena, decoded))
 }

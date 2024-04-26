@@ -16,6 +16,7 @@ clap = { version = "4.4.7", features = ["derive"] }
 bitflags = "2.4.1"
 bumpalo = { version = "3.9.1", features = ["collections", "boxed"] }
 dtoa = "1"
+base64 = "0.22.0"
 
 [dev-dependencies]
 test-case = "1.2.0"
