@@ -36,6 +36,10 @@ impl<'a> JsonAta<'a> {
         self.frame.bind(name, value)
     }
 
+    pub fn register_function(&self, name: &str, arity: usize, implementation: fn(FunctionContext<'a, '_>, &'a Value<'a>) -> Result<&'a Value<'a>>) {
+        self.frame.bind(name, Value::nativefn(&self.arena, name, arity, implementation));
+    }
+
     pub fn evaluate(&self, input: Option<&str>) -> Result<&'a Value<'a>> {
         self.evaluate_timeboxed(input, None, None)
     }
@@ -106,3 +110,94 @@ impl<'a> JsonAta<'a> {
         evaluator.evaluate(&self.ast, input, &self.frame)
     }
 }
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    use bumpalo::Bump;
+
+    #[test]
+    fn register_function() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$test('abc')", &arena).unwrap();
+        jsonata.register_function("test", 1, |ctx, _| Ok(Value::number(ctx.arena, 1)));
+        
+        let result = jsonata.evaluate(Some(r#"anything"#));
+
+        println!("{:?}", result);
+
+        assert_eq!(result.unwrap(), Value::number(&arena, 1));
+    }
+}
+
+
+    // fn t(resource: &str) {
+    //     if SKIP.iter().any(|&s| s == resource) {
+    //         return;
+    //     }
+
+    //     test_case(resource);
+    // }
+
+    // fn test_case(resource: &str) {
+        // let arena = Bump::new();
+        // let test_jsonata = JsonAta::new(
+        //     &fs::read_to_string(path::Path::new(resource)).unwrap(),
+        //     &arena,
+        // )
+        // .unwrap();
+        // let test = test_jsonata.evaluate(None).unwrap();
+        // let test = Value::wrap_in_array_if_needed(&arena, test, ArrayFlags::empty());
+
+        // for case in test.members() {
+        //     let timelimit = &case["timelimit"];
+        //     let timelimit = if timelimit.is_integer() {
+        //         Some(timelimit.as_usize())
+        //     } else {
+        //         None
+        //     };
+
+        //     let depth = &case["depth"];
+        //     let depth = if depth.is_integer() {
+        //         Some(depth.as_usize())
+        //     } else {
+        //         None
+        //     };
+
+        //     let expr = &case["expr"];
+        //     let expr_file = &case["expr-file"];
+
+        //     let expr = if expr.is_string() {
+        //         expr.as_str().to_string()
+        //     } else if expr_file.is_string() {
+        //         fs::read_to_string(
+        //             path::Path::new(resource)
+        //                 .parent()
+        //                 .unwrap()
+        //                 .join(expr_file.as_str().to_string()),
+        //         )
+        //         .unwrap()
+        //     } else {
+        //         panic!("No expression")
+        //     };
+
+        //     eprintln!("EXPR: {expr}");
+
+        //     let data = &case["data"];
+        //     let dataset = &case["dataset"];
+
+        //     let data = if dataset.is_string() {
+        //         let dataset = format!("tests/testsuite/datasets/{}.json", dataset.as_str());
+        //         fs::read_to_string(&dataset).unwrap()
+        //     } else if data.is_undefined() {
+        //         "".to_string()
+        //     } else {
+        //         data.to_string()
+        //     };
+
+        //     let data = JsonAta::new(&data, &arena).unwrap().evaluate(None).unwrap();
+
+        //     let test_jsonata = JsonAta::new(&expr, &arena).unwrap();
+        //     test_jsonata.assign_var("$", data);
+
+        //     let result = test_jsonata.evaluate_timeboxed(None, depth, timel
