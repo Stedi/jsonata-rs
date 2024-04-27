@@ -18,5 +18,5 @@ bumpalo = { version = "3.16.0", features = ["collections", "boxed"] }
 dtoa = "1"
 
 [dev-dependencies]
-test-case = "1.2.3"
+test-case = "3.3.1"
 test-generator = "0.3"
