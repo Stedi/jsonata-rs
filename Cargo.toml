@@ -12,9 +12,9 @@ categories = ["command-line-utilities", "compilers", "parser-implementations"]
 
 [dependencies]
 chrono = "0.4"
-clap = { version = "4.4.7", features = ["derive"] }
-bitflags = "2.4.1"
-bumpalo = { version = "3.9.1", features = ["collections", "boxed"] }
+clap = { version = "4.5.4", features = ["derive"] }
+bitflags = "2.5.0"
+bumpalo = { version = "3.16.0", features = ["collections", "boxed"] }
 dtoa = "1"
 
 [dev-dependencies]
