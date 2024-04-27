@@ -4,71 +4,57 @@ on:
     branches:
       - main
 
-name: Test Suite
+name: build
 
 jobs:
-  check:
-    name: Check
+  tests:
+    name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --all-features -- --nocapture
 
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-
-  test-wasm:
+  test_wasm:
     name: Test WebAssembly (WASI)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
           target: wasm32-wasi
-          override: true
-      - uses: actions-rs/cargo@v1
+      - uses: taiki-e/install-action@44831bc93d80cce9f8f1780406c241106cc8cbf7
         with:
-          command: install
-          args: wasmtime-cli cargo-wasi
-      - uses: actions-rs/cargo@v1
-        env:
+          tool: wasmtime,cargo-wasi
+      - env:
           CARGO_TARGET_WASM32_WASI_RUNNER: "wasmtime --dir=."
-        with:
-          command: wasi
-          args: test -- --nocapture
+        run: cargo wasi test -- --nocapture
 
-  clippy:
-    name: Clippy
+  fmt_lint:
+    name: Format/Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
-          override: true
-          components: clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: -- -D warnings
+          components: rustfmt, clippy
+      - name: Cargo fmt
+        run: cargo fmt --all --check
+      - name: Cargo clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Check for diffs
+        run: git diff --ignore-space-at-eol --exit-code
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [tests, fmt_lint, test_wasm]
+    # Skipping this results job results in a misleading status on PRs and in the queue,
+    # so instead lets always return an explicit success or failure.
+    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    steps:
+      - name: Collect results on success
+        if: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+        run: echo "All checks passed"
+      - name: Collect results on failure
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: echo "Some checks failed" && false

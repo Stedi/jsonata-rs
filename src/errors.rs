@@ -54,10 +54,10 @@ pub enum Error {
     T2011UpdateNotObject(usize, String),
     T2012DeleteNotStrings(usize, String),
     T2013BadClone(usize),
-    
+
     // Expression timebox/depth errors
     U1001StackOverflow,
-    U1001Timeout
+    U1001Timeout,
 }
 
 impl error::Error for Error {}
@@ -131,13 +131,13 @@ impl Error {
             Error::T2011UpdateNotObject(..) => "T2011",
             Error::T2012DeleteNotStrings(..) => "T2012",
             Error::T2013BadClone(..) => "T2013",
-            
+
             // Expression timebox/depth errors
             Error::U1001StackOverflow => "U1001",
-            Error::U1001Timeout => "U1001"
+            Error::U1001Timeout => "U1001",
         }
     }
-}  
+}
 
 impl fmt::Display for Error {
     #[allow(clippy::many_single_char_names)]
@@ -182,21 +182,19 @@ impl fmt::Display for Error {
                 write!(f, "{}: The literal value `{}` cannot be used as a step within a path expression", p, k),
             S0214ExpectedVarRight(ref p, ref k) =>
                 write!(f, "{}: The right side of `{}` must be a variable name (start with $)", p, k),
-            S0215BindingAfterPredicates(ref p) => 
+            S0215BindingAfterPredicates(ref p) =>
                 write!(f, "{}: A context variable binding must precede any predicates on a step", p),
             S0216BindingAfterSort(ref p) =>
                 write!(f, "{}: A context variable binding must precede the 'order-by' clause on a step", p),
-            
             // Runtime errors
-            D1001NumberOfOutRange(ref n) =>
-                write!(f, "Number out of range: {}", n),
+            D1001NumberOfOutRange(ref n) => write!(f, "Number out of range: {}", n),
             D1002NegatingNonNumeric(ref p, ref v) =>
                 write!(f, "{}: Cannot negate a non-numeric value `{}`", p, v),
             D1009MultipleKeys(ref p, ref k) =>
                 write!(f, "{}: Multiple key definitions evaluate to same key: {}", p, k),
             D2014RangeOutOfBounds(ref p, ref s) =>
                 write!(f, "{}: The size of the sequence allocated by the range operator (..) must not exceed 1e7.  Attempted to allocate {}", p, s),
-            D3001StringNotFinite(ref p) => 
+            D3001StringNotFinite(ref p) =>
                 write!(f, "{}: Attempting to invoke string function on Infinity or NaN", p),
             D3030NonNumericCast(ref p, ref n) =>
                 write!(f, "{}: Unable to cast value to a number: {}", p, n),
@@ -210,7 +208,6 @@ impl fmt::Display for Error {
                 write!(f, "{}", m),
             D3137Error(ref m) =>
                 write!(f, "{}", m),
-            
             // Type errors
             T0410ArgumentNotValid(ref p, ref i, ref t) =>
                 write!(f, "{}: Argument {} of function {} does not match function signature", p, i, t),
@@ -246,11 +243,10 @@ impl fmt::Display for Error {
                 write!(f, "{p}: The delete clause of the transform expression must evaluate to a string or array of strings: {v}"),
             T2013BadClone(ref p) =>
                 write!(f, "{p}: The transform expression clones the input object using the $clone() function.  This has been overridden in the current scope by a non-function."),
-    
             // Expression timebox/depth errors
-            U1001StackOverflow => 
+            U1001StackOverflow =>
                 write!(f, "Stack overflow error: Check for non-terminating recursive function.  Consider rewriting as tail-recursive."),
-            U1001Timeout => 
+            U1001Timeout =>
                 write!(f, "Expression evaluation timeout: Check for infinite loop")
         }
     }
