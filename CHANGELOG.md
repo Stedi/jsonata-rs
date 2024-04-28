@@ -15,3 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.0] - 2022-05-28
 
 Initial version published to crates.io.
+
+## [0.1.2] - 2022-05-28
+
+Adding support for base64 encoding decoding, thanks to nated0g for the contribution.
