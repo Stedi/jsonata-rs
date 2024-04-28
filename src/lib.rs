@@ -98,6 +98,8 @@ impl<'a> JsonAta<'a> {
         bind_native!("sum", 1, fn_sum);
         bind_native!("trim", 1, fn_trim);
         bind_native!("uppercase", 1, fn_uppercase);
+        bind_native!("base64encode", 1, fn_base64_encode);
+        bind_native!("base64decode", 1, fn_base64_decode);
 
         let chain_ast = Some(parser::parse(
             "function($f, $g) { function($x){ $g($f($x)) } }",
