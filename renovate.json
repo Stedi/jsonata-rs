@@ -11,6 +11,7 @@
   "stabilityDays": 21,
   "internalChecksFilter": "strict",
   "dependencyDashboard": true,
+  "forkProcessing": "enabled",
   "major": {
     "automerge": false,
     "dependencyDashboardApproval": true,
