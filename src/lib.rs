@@ -36,6 +36,18 @@ impl<'a> JsonAta<'a> {
         self.frame.bind(name, value)
     }
 
+    pub fn register_function(
+        &self,
+        name: &str,
+        arity: usize,
+        implementation: fn(FunctionContext<'a, '_>, &'a Value<'a>) -> Result<&'a Value<'a>>,
+    ) {
+        self.frame.bind(
+            name,
+            Value::nativefn(self.arena, name, arity, implementation),
+        );
+    }
+
     pub fn evaluate(&self, input: Option<&str>) -> Result<&'a Value<'a>> {
         self.evaluate_timeboxed(input, None, None)
     }
@@ -106,5 +118,76 @@ impl<'a> JsonAta<'a> {
         )?);
         let evaluator = Evaluator::new(chain_ast, self.arena, max_depth, time_limit);
         evaluator.evaluate(&self.ast, input, &self.frame)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn register_function_simple() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$test()", &arena).unwrap();
+        jsonata.register_function("test", 0, |ctx, _| Ok(Value::number(ctx.arena, 1)));
+
+        let result = jsonata.evaluate(Some(r#"anything"#));
+
+        assert_eq!(result.unwrap(), Value::number(&arena, 1));
+    }
+
+    #[test]
+    fn register_function_override_now() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$now()", &arena).unwrap();
+        jsonata.register_function("now", 0, |ctx, _| {
+            Ok(Value::string(ctx.arena, "time for tea"))
+        });
+
+        let result = jsonata.evaluate(Some(r#"anything"#));
+
+        assert_eq!(result.unwrap(), Value::string(&arena, "time for tea"));
+    }
+
+    #[test]
+    fn register_function_map_squareroot() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$map([1,4,9,16], $squareroot)", &arena).unwrap();
+        jsonata.register_function("squareroot", 1, |ctx, args| {
+            let num = &args[0];
+            return Ok(Value::number(ctx.arena, (num.as_f64()).sqrt()));
+        });
+
+        let result = jsonata.evaluate(Some(r#"anything"#));
+
+        assert_eq!(
+            result
+                .unwrap()
+                .members()
+                .map(|v| v.as_f64())
+                .collect::<Vec<f64>>(),
+            vec![1.0, 2.0, 3.0, 4.0]
+        );
+    }
+
+    #[test]
+    fn register_function_filter_even() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$filter([1,4,9,16], $even)", &arena).unwrap();
+        jsonata.register_function("even", 1, |ctx, args| {
+            let num = &args[0];
+            return Ok(Value::bool(ctx.arena, (num.as_f64()) % 2.0 == 0.0));
+        });
+
+        let result = jsonata.evaluate(Some(r#"anything"#));
+
+        assert_eq!(
+            result
+                .unwrap()
+                .members()
+                .map(|v| v.as_f64())
+                .collect::<Vec<f64>>(),
+            vec![4.0, 16.0]
+        );
     }
 }
