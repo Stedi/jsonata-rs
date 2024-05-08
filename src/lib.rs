@@ -231,4 +231,47 @@ mod tests {
             vec![4.0, 16.0]
         );
     }
+
+    #[test]
+    fn evaluate_with_bindings_simple() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$a + $b", &arena).unwrap();
+
+        let a = &serde_json::Value::Number(serde_json::Number::from(1));
+        let b = &serde_json::Value::Number(serde_json::Number::from(2));
+
+        let mut bindings = HashMap::new();
+        bindings.insert("a", a);
+        bindings.insert("b", b);
+
+        let result = jsonata.evaluate(None, Some(&bindings));
+
+        assert_eq!(result.unwrap().as_f64(), 3.0);
+    }
+
+    #[test]
+    fn evaluate_with_bindings_nested() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$foo[0].a + $foo[1].b", &arena).unwrap();
+
+        let foo_string = r#"
+            [
+                {
+                    "a": 1
+                },
+                {
+                    "b": 2
+                }
+            ]
+        "#;
+
+        let foo: serde_json::Value = serde_json::from_str(&foo_string).unwrap();
+
+        let mut bindings = HashMap::new();
+        bindings.insert("foo", &foo);
+
+        let result = jsonata.evaluate(None, Some(&bindings));
+
+        assert_eq!(result.unwrap().as_f64(), 3.0);
+    }
 }
