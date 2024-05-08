@@ -1,4 +1,6 @@
 #![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
+use std::collections::HashMap;
+
 use bumpalo::Bump;
 
 mod errors;
@@ -48,7 +50,46 @@ impl<'a> JsonAta<'a> {
         );
     }
 
-    pub fn evaluate(&self, input: Option<&str>) -> Result<&'a Value<'a>> {
+    fn json_value_to_value(&self, json_value: &serde_json::Value) -> &'a mut Value<'a> {
+        return match json_value {
+            serde_json::Value::Null => Value::null(self.arena),
+            serde_json::Value::Bool(b) => Value::bool(self.arena, *b),
+            serde_json::Value::Number(n) => Value::number(self.arena, n.as_f64().unwrap()),
+            serde_json::Value::String(s) => Value::string(self.arena, s),
+
+            serde_json::Value::Array(a) => {
+                let array = Value::array_with_capacity(self.arena, a.len(), ArrayFlags::empty());
+                for v in a.iter() {
+                    array.push(self.json_value_to_value(v))
+                }
+
+                return array;
+            }
+            serde_json::Value::Object(o) => {
+                let object = Value::object_with_capacity(self.arena, o.len());
+                for (k, v) in o.iter() {
+                    object.insert(k, self.json_value_to_value(v));
+                }
+                return object;
+            }
+        };
+    }
+
+    pub fn evaluate(
+        &self,
+        input: Option<&str>,
+        bindings: Option<&HashMap<&str, &serde_json::Value>>,
+    ) -> Result<&'a Value<'a>> {
+        match bindings {
+            Some(bindings) => {
+                for (key, json_value) in bindings.iter() {
+                    let value = self.json_value_to_value(json_value);
+                    self.assign_var(key, value);
+                }
+            }
+            None => {}
+        };
+
         self.evaluate_timeboxed(input, None, None)
     }
 
@@ -131,7 +172,7 @@ mod tests {
         let jsonata = JsonAta::new("$test()", &arena).unwrap();
         jsonata.register_function("test", 0, |ctx, _| Ok(Value::number(ctx.arena, 1)));
 
-        let result = jsonata.evaluate(Some(r#"anything"#));
+        let result = jsonata.evaluate(Some(r#"anything"#), None);
 
         assert_eq!(result.unwrap(), Value::number(&arena, 1));
     }
@@ -144,7 +185,7 @@ mod tests {
             Ok(Value::string(ctx.arena, "time for tea"))
         });
 
-        let result = jsonata.evaluate(Some(r#"anything"#));
+        let result = jsonata.evaluate(Some(r#"anything"#), None);
 
         assert_eq!(result.unwrap(), Value::string(&arena, "time for tea"));
     }
@@ -158,7 +199,7 @@ mod tests {
             return Ok(Value::number(ctx.arena, (num.as_f64()).sqrt()));
         });
 
-        let result = jsonata.evaluate(Some(r#"anything"#));
+        let result = jsonata.evaluate(Some(r#"anything"#), None);
 
         assert_eq!(
             result
@@ -179,7 +220,7 @@ mod tests {
             return Ok(Value::bool(ctx.arena, (num.as_f64()) % 2.0 == 0.0));
         });
 
-        let result = jsonata.evaluate(Some(r#"anything"#));
+        let result = jsonata.evaluate(Some(r#"anything"#), None);
 
         assert_eq!(
             result
