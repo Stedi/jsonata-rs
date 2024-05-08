@@ -80,14 +80,11 @@ impl<'a> JsonAta<'a> {
         input: Option<&str>,
         bindings: Option<&HashMap<&str, &serde_json::Value>>,
     ) -> Result<&'a Value<'a>> {
-        match bindings {
-            Some(bindings) => {
-                for (key, json_value) in bindings.iter() {
-                    let value = self.json_value_to_value(json_value);
-                    self.assign_var(key, value);
-                }
+        if let Some(bindings) = bindings {
+            for (key, json_value) in bindings.iter() {
+                let value = self.json_value_to_value(json_value);
+                self.assign_var(key, value);
             }
-            None => {}
         };
 
         self.evaluate_timeboxed(input, None, None)
@@ -265,7 +262,7 @@ mod tests {
             ]
         "#;
 
-        let foo: serde_json::Value = serde_json::from_str(&foo_string).unwrap();
+        let foo: serde_json::Value = serde_json::from_str(foo_string).unwrap();
 
         let mut bindings = HashMap::new();
         bindings.insert("foo", &foo);
