@@ -1,9 +1,9 @@
 [package]
 name = "jsonata-rs"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
-license = "MIT OR Apache-2.0"
-authors = ["stedi developers"]
+license = "Apache-2.0"
+authors = ["Stedi"]
 description = "An (incomplete) implementation of JSONata in Rust"
 homepage = "https://github.com/Stedi/jsonata-rs/"
 repository = "https://github.com/Stedi/jsonata-rs/"
