@@ -33,7 +33,7 @@ fn test_case(resource: &str) {
         &arena,
     )
     .unwrap();
-    let test = test_jsonata.evaluate(None).unwrap();
+    let test = test_jsonata.evaluate(None, None).unwrap();
     let test = Value::wrap_in_array_if_needed(&arena, test, ArrayFlags::empty());
 
     for case in test.members() {

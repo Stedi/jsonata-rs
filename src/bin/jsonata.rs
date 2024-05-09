@@ -55,7 +55,7 @@ fn main() {
                 None => opt.input.unwrap_or_else(|| "{}".to_string()),
             };
 
-            match jsonata.evaluate(Some(&input)) {
+            match jsonata.evaluate(Some(&input), None) {
                 Ok(result) => println!("{}", result.serialize(true)),
                 Err(error) => println!("{}", error),
             }

@@ -94,8 +94,8 @@ impl std::fmt::Debug for Value<'_> {
     }
 }
 
-impl std::string::ToString for Value<'_> {
-    fn to_string(&self) -> String {
-        format!("{:#?}", self)
+impl std::fmt::Display for Value<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#?}", self)
     }
 }
