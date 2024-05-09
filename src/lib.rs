@@ -8,6 +8,7 @@ mod evaluator;
 mod parser;
 
 pub use errors::Error;
+pub use evaluator::functions::FunctionContext;
 pub use evaluator::value::{ArrayFlags, Value};
 
 use evaluator::{frame::Frame, functions::*, Evaluator};
