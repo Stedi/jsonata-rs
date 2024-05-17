@@ -448,6 +448,30 @@ pub fn fn_substring<'a>(
     }
 }
 
+pub fn fn_contains<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &'a Value<'a>,
+) -> Result<&'a Value<'a>> {
+    let str_value = &args[0];
+    let token_value = &args[1];
+
+    // undefined inputs always return undefined
+    if str_value.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    assert_arg!(str_value.is_string(), context, 1);
+    assert_arg!(token_value.is_string(), context, 2);
+
+    let str_value = str_value.as_str();
+    let token_value = token_value.as_str();
+
+    Ok(Value::bool(
+        context.arena,
+        str_value.contains(&token_value.to_string()),
+    ))
+}
+
 pub fn fn_abs<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
     let arg = &args[0];
 
