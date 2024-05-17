@@ -323,6 +323,46 @@ pub fn fn_each<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
     Ok(result)
 }
 
+pub fn fn_keys<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
+    let obj = if args.is_empty() {
+        if context.input.is_array() && context.input.has_flags(ArrayFlags::WRAPPED) {
+            &context.input[0]
+        } else {
+            context.input
+        }
+    } else {
+        &args[0]
+    };
+
+    if obj.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    let mut keys = Vec::new();
+
+    if obj.is_array() && obj.members().all(|member| member.is_object()) {
+        for (_, sub_object) in obj.members().enumerate() {
+            for (key, _) in sub_object.entries() {
+                // deduplicating keys from multiple objects
+                if !keys.iter().any(|item| item == key) {
+                    keys.push(key.to_string());
+                }
+            }
+        }
+    } else if obj.is_object() {
+        for (key, _) in obj.entries() {
+            keys.push(key.to_string());
+        }
+    }
+
+    let result = Value::array(context.arena, ArrayFlags::SEQUENCE);
+    for key in keys {
+        result.push(Value::string(context.arena, key));
+    }
+
+    Ok(result)
+}
+
 pub fn fn_string<'a>(
     context: FunctionContext<'a, '_>,
     args: &'a Value<'a>,

@@ -134,6 +134,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("filter", 2, fn_filter);
         bind_native!("floor", 1, fn_floor);
         bind_native!("join", 2, fn_join);
+        bind_native!("keys", 1, fn_keys);
         bind_native!("length", 1, fn_length);
         bind_native!("lookup", 2, fn_lookup);
         bind_native!("lowercase", 1, fn_lowercase);
