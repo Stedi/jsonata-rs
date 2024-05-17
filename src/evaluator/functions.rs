@@ -285,6 +285,44 @@ pub fn fn_filter<'a>(
     Ok(result)
 }
 
+pub fn fn_each<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
+    let (obj, func) = if args.len() == 1 {
+        let obj_arg = if context.input.is_array() && context.input.has_flags(ArrayFlags::WRAPPED) {
+            &context.input[0]
+        } else {
+            context.input
+        };
+
+        (obj_arg, &args[0])
+    } else {
+        (&args[0], &args[1])
+    };
+
+    if obj.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    assert_arg!(obj.is_object(), context, 1);
+    assert_arg!(func.is_function(), context, 2);
+
+    let result = Value::array(context.arena, ArrayFlags::SEQUENCE);
+
+    for (_, (key, value)) in obj.entries().enumerate() {
+        let args = Value::array(context.arena, ArrayFlags::empty());
+        let key = Value::string(context.arena, key.to_string());
+
+        args.push(value);
+        args.push(key);
+
+        let mapped = context.evaluate_function(func, args)?;
+        if !mapped.is_undefined() {
+            result.push(mapped);
+        }
+    }
+
+    Ok(result)
+}
+
 pub fn fn_string<'a>(
     context: FunctionContext<'a, '_>,
     args: &'a Value<'a>,

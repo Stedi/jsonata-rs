@@ -128,6 +128,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("ceil", 1, fn_ceil);
         bind_native!("contains", 2, fn_contains);
         bind_native!("count", 1, fn_count);
+        bind_native!("each", 2, fn_each);
         bind_native!("error", 1, fn_error);
         bind_native!("exists", 1, fn_exists);
         bind_native!("filter", 2, fn_filter);
