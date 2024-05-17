@@ -307,7 +307,7 @@ pub fn fn_each<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
 
     let result = Value::array(context.arena, ArrayFlags::SEQUENCE);
 
-    for (_, (key, value)) in obj.entries().enumerate() {
+    for (key, value) in obj.entries() {
         let args = Value::array(context.arena, ArrayFlags::empty());
         let key = Value::string(context.arena, key.to_string());
 
@@ -341,7 +341,7 @@ pub fn fn_keys<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
     let mut keys = Vec::new();
 
     if obj.is_array() && obj.members().all(|member| member.is_object()) {
-        for (_, sub_object) in obj.members().enumerate() {
+        for sub_object in obj.members() {
             for (key, _) in sub_object.entries() {
                 // deduplicating keys from multiple objects
                 if !keys.iter().any(|item| item == key) {
