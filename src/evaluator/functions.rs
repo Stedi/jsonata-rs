@@ -363,6 +363,46 @@ pub fn fn_keys<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
     Ok(result)
 }
 
+pub fn fn_merge<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &'a Value<'a>,
+) -> Result<&'a Value<'a>> {
+    let mut array_of_objects = if args.is_empty() {
+        if context.input.is_array() && context.input.has_flags(ArrayFlags::WRAPPED) {
+            &context.input[0]
+        } else {
+            context.input
+        }
+    } else {
+        &args[0]
+    };
+
+    if array_of_objects.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    if array_of_objects.is_object() {
+        array_of_objects =
+            Value::wrap_in_array(context.arena, array_of_objects, ArrayFlags::empty());
+    }
+
+    assert_arg!(
+        array_of_objects.is_array() && array_of_objects.members().all(|member| member.is_object()),
+        context,
+        1
+    );
+
+    let result = Value::object(context.arena);
+
+    for obj in array_of_objects.members() {
+        for (key, value) in obj.entries() {
+            result.insert(key, value);
+        }
+    }
+
+    Ok(result)
+}
+
 pub fn fn_string<'a>(
     context: FunctionContext<'a, '_>,
     args: &'a Value<'a>,
@@ -533,7 +573,6 @@ pub fn fn_contains<'a>(
     let str_value = &args[0];
     let token_value = &args[1];
 
-    // undefined inputs always return undefined
     if str_value.is_undefined() {
         return Ok(Value::undefined());
     }

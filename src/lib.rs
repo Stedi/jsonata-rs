@@ -140,6 +140,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("lowercase", 1, fn_lowercase);
         bind_native!("map", 2, fn_map);
         bind_native!("max", 1, fn_max);
+        bind_native!("merge", 1, fn_merge);
         bind_native!("min", 1, fn_min);
         bind_native!("not", 1, fn_not);
         bind_native!("number", 1, fn_number);
