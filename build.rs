@@ -7,7 +7,7 @@ use std::path::Path;
 fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("generated_tests.rs");
-    let mut file = fs::File::create(&dest_path).unwrap();
+    let mut file = fs::File::create(dest_path).unwrap();
 
     let resources = get_test_resources("tests/testsuite/**/*.json");
 
