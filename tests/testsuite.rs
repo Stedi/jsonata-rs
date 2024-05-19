@@ -4,27 +4,9 @@ extern crate test_generator;
 use bumpalo::Bump;
 use std::fs;
 use std::path;
-use test_generator::test_resources;
-
 use jsonata_rs::{ArrayFlags, JsonAta, Value};
 
-const SKIP: &[&str] = &[
-    // The order of object properties in the output is not deterministic,
-    // so string comparison fails. If we were using something like a BTreeMap
-    // or an IndexedMap then running these would be possible.
-    "tests/testsuite/groups/function-string/case018.json",
-    "tests/testsuite/groups/function-string/case027.json",
-    "tests/testsuite/groups/function-string/case028.json",
-];
-
-#[test_resources("tests/testsuite/groups/*/*.json")]
-fn t(resource: &str) {
-    if SKIP.iter().any(|&s| s == resource) {
-        return;
-    }
-
-    test_case(resource);
-}
+include!(concat!(env!("OUT_DIR"), "/generated_tests.rs"));
 
 fn test_case(resource: &str) {
     let arena = Bump::new();
@@ -133,13 +115,13 @@ fn test_case(resource: &str) {
                         } else {
                             &case["code"]
                         };
-                        assert_eq!(*code, error.code());
+assert_eq!(*code, error.code());
                     }
                 }
             }
             Err(error) => {
                 eprintln!("{}", error);
-                let code = if !case["error"].is_undefined() {
+            let code = if !case["error"].is_undefined() {
                     &case["error"]["code"]
                 } else {
                     &case["code"]
