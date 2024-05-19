@@ -1,8 +1,8 @@
+use glob::glob;
 use std::env;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
-use glob::glob;
 
 fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();

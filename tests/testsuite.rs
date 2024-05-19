@@ -2,9 +2,9 @@
 extern crate test_generator;
 
 use bumpalo::Bump;
+use jsonata_rs::{ArrayFlags, JsonAta, Value};
 use std::fs;
 use std::path;
-use jsonata_rs::{ArrayFlags, JsonAta, Value};
 
 include!(concat!(env!("OUT_DIR"), "/generated_tests.rs"));
 
@@ -115,13 +115,13 @@ fn test_case(resource: &str) {
                         } else {
                             &case["code"]
                         };
-assert_eq!(*code, error.code());
+                        assert_eq!(*code, error.code());
                     }
                 }
             }
             Err(error) => {
                 eprintln!("{}", error);
-            let code = if !case["error"].is_undefined() {
+                let code = if !case["error"].is_undefined() {
                     &case["error"]["code"]
                 } else {
                     &case["code"]
