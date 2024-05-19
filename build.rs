@@ -53,8 +53,20 @@ fn get_test_resources(pattern: &str) -> Vec<String> {
 }
 
 fn sanitize_filename(filename: &str) -> String {
-    filename
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '_' })
-        .collect()
+    let mut sanitized = String::new();
+    let mut prev_was_underscore = false;
+
+    for c in filename.chars() {
+        if c.is_alphanumeric() {
+            if prev_was_underscore {
+                sanitized.push('_');
+                prev_was_underscore = false;
+            }
+            sanitized.push(c.to_ascii_lowercase());
+        } else {
+            prev_was_underscore = true;
+        }
+    }
+
+    sanitized
 }
