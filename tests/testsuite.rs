@@ -1,38 +1,25 @@
 #![cfg(test)]
-extern crate test_generator;
-
 use bumpalo::Bump;
-use std::fs;
-use std::path;
-use test_generator::test_resources;
+use rstest::rstest;
+use std::path::PathBuf;
+use std::{fs, path::Path};
 
 use jsonata_rs::{ArrayFlags, JsonAta, Value};
 
-const SKIP: &[&str] = &[
-    // The order of object properties in the output is not deterministic,
-    // so string comparison fails. If we were using something like a BTreeMap
-    // or an IndexedMap then running these would be possible.
-    "tests/testsuite/groups/function-string/case018.json",
-    "tests/testsuite/groups/function-string/case027.json",
-    "tests/testsuite/groups/function-string/case028.json",
-];
-
-#[test_resources("tests/testsuite/groups/*/*.json")]
-fn t(resource: &str) {
-    if SKIP.iter().any(|&s| s == resource) {
-        return;
-    }
-
-    test_case(resource);
+#[rstest]
+fn test(#[files("tests/testsuite/groups/*/*.json")] resource: PathBuf) {
+    test_case(&resource);
 }
 
-fn test_case(resource: &str) {
+#[rstest]
+#[ignore]
+fn skip(#[files("tests/testsuite/skip/*/*.json")] resource: PathBuf) {
+    test_case(&resource);
+}
+
+fn test_case(resource: &Path) {
     let arena = Bump::new();
-    let test_jsonata = JsonAta::new(
-        &fs::read_to_string(path::Path::new(resource)).unwrap(),
-        &arena,
-    )
-    .unwrap();
+    let test_jsonata = JsonAta::new(&fs::read_to_string(resource).unwrap(), &arena).unwrap();
     let test = test_jsonata.evaluate(None, None).unwrap();
     let test = Value::wrap_in_array_if_needed(&arena, test, ArrayFlags::empty());
 
@@ -58,7 +45,7 @@ fn test_case(resource: &str) {
             expr.as_str().to_string()
         } else if expr_file.is_string() {
             fs::read_to_string(
-                path::Path::new(resource)
+                Path::new(resource)
                     .parent()
                     .unwrap()
                     .join(expr_file.as_str().to_string()),

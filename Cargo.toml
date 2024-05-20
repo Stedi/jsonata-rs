@@ -20,5 +20,5 @@ base64 = "0.22.1"
 serde_json = "1.0.117"
 
 [dev-dependencies]
+rstest = "0.19.0"
 test-case = "3.3.1"
-test-generator = "0.3.1"
