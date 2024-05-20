@@ -285,6 +285,124 @@ pub fn fn_filter<'a>(
     Ok(result)
 }
 
+pub fn fn_each<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
+    let (obj, func) = if args.len() == 1 {
+        let obj_arg = if context.input.is_array() && context.input.has_flags(ArrayFlags::WRAPPED) {
+            &context.input[0]
+        } else {
+            context.input
+        };
+
+        (obj_arg, &args[0])
+    } else {
+        (&args[0], &args[1])
+    };
+
+    if obj.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    assert_arg!(obj.is_object(), context, 1);
+    assert_arg!(func.is_function(), context, 2);
+
+    let result = Value::array(context.arena, ArrayFlags::SEQUENCE);
+
+    for (key, value) in obj.entries() {
+        let args = Value::array(context.arena, ArrayFlags::empty());
+        let key = Value::string(context.arena, key.to_string());
+
+        args.push(value);
+        args.push(key);
+
+        let mapped = context.evaluate_function(func, args)?;
+        if !mapped.is_undefined() {
+            result.push(mapped);
+        }
+    }
+
+    Ok(result)
+}
+
+pub fn fn_keys<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
+    let obj = if args.is_empty() {
+        if context.input.is_array() && context.input.has_flags(ArrayFlags::WRAPPED) {
+            &context.input[0]
+        } else {
+            context.input
+        }
+    } else {
+        &args[0]
+    };
+
+    if obj.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    let mut keys = Vec::new();
+
+    if obj.is_array() && obj.members().all(|member| member.is_object()) {
+        for sub_object in obj.members() {
+            for (key, _) in sub_object.entries() {
+                // deduplicating keys from multiple objects
+                if !keys.iter().any(|item| item == key) {
+                    keys.push(key.to_string());
+                }
+            }
+        }
+    } else if obj.is_object() {
+        for (key, _) in obj.entries() {
+            keys.push(key.to_string());
+        }
+    }
+
+    let result = Value::array(context.arena, ArrayFlags::SEQUENCE);
+    for key in keys {
+        result.push(Value::string(context.arena, key));
+    }
+
+    Ok(result)
+}
+
+pub fn fn_merge<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &'a Value<'a>,
+) -> Result<&'a Value<'a>> {
+    let mut array_of_objects = if args.is_empty() {
+        if context.input.is_array() && context.input.has_flags(ArrayFlags::WRAPPED) {
+            &context.input[0]
+        } else {
+            context.input
+        }
+    } else {
+        &args[0]
+    };
+
+    if array_of_objects.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    if array_of_objects.is_object() {
+        array_of_objects =
+            Value::wrap_in_array(context.arena, array_of_objects, ArrayFlags::empty());
+    }
+
+    assert_arg!(
+        array_of_objects.is_array() && array_of_objects.members().all(|member| member.is_object()),
+        context,
+        1
+    );
+
+    let result = Value::object(context.arena);
+
+    for obj in array_of_objects.members() {
+        for (key, value) in obj.entries() {
+            result.insert(key, value);
+        }
+    }
+
+    Ok(result)
+}
+
 pub fn fn_string<'a>(
     context: FunctionContext<'a, '_>,
     args: &'a Value<'a>,
@@ -446,6 +564,29 @@ pub fn fn_substring<'a>(
             Ok(Value::string(context.arena, substring))
         }
     }
+}
+
+pub fn fn_contains<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &'a Value<'a>,
+) -> Result<&'a Value<'a>> {
+    let str_value = &args[0];
+    let token_value = &args[1];
+
+    if str_value.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    assert_arg!(str_value.is_string(), context, 1);
+    assert_arg!(token_value.is_string(), context, 2);
+
+    let str_value = str_value.as_str();
+    let token_value = token_value.as_str();
+
+    Ok(Value::bool(
+        context.arena,
+        str_value.contains(&token_value.to_string()),
+    ))
 }
 
 pub fn fn_abs<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
