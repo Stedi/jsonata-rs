@@ -1,10 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:base",
-    "group:monorepos",
-    "group:recommended"
-  ],
+  "extends": ["config:base", "group:monorepos", "group:recommended"],
   "automerge": true,
   "platformAutomerge": true,
   "rebaseWhen": "conflicted",
@@ -29,12 +25,48 @@
     {
       "groupName": "high-confidence-rust-minor",
       "matchManagers": ["cargo"],
-      "matchUpdateTypes": ["minor"]
+      "matchUpdateTypes": ["minor"],
+      "automerge": true,
+      "platformAutomerge": true,
+      "addLabels": ["dependencies"],
+      "schedule": ["after 9am and before 5pm on Monday"]
     },
     {
       "groupName": "high-confidence-rust-patch",
       "matchManagers": ["cargo"],
-      "matchUpdateTypes": ["patch"]
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "platformAutomerge": true,
+      "addLabels": ["dependencies"],
+      "schedule": ["after 9am and before 5pm on Monday"]
+    },
+    {
+      "matchSourceUrlPrefixes": ["https://github.com/actions"],
+      "matchUpdateTypes": ["major"],
+      "automerge": true,
+      "platformAutomerge": true,
+      "minimumReleaseAge": "3 days",
+      "schedule": ["after 9am and before 5pm on Monday"],
+      "groupName": "GitHub Actions upgrade (major)",
+      "addLabels": ["dependencies"]
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest",
+        "pinDigest",
+        "rollback",
+        "bump"
+      ],
+      "automerge": true,
+      "platformAutomerge": true,
+      "minimumReleaseAge": "3 days",
+      "schedule": ["after 9am and before 5pm on Monday"],
+      "groupName": "GitHub Actions upgrade",
+      "addLabels": ["dependencies"]
     }
   ]
 }
