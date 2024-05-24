@@ -1,0 +1,26 @@
+name: Validate Repo Renovate Config
+
+on:
+  workflow_call:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "renovate.json"
+
+jobs:
+  validate-renovate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4
+
+      - uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4
+        with:
+          node-version: 18
+
+      - name: Install Renovate
+        run: npm install -g renovate
+
+      - name: Validate repo Renovate config
+        run: renovate-config-validator
