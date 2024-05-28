@@ -124,6 +124,8 @@ impl<'a> JsonAta<'a> {
         bind_native!("abs", 1, fn_abs);
         bind_native!("append", 2, fn_append);
         bind_native!("assert", 2, fn_assert);
+        bind_native!("base64decode", 1, fn_base64_decode);
+        bind_native!("base64encode", 1, fn_base64_encode);
         bind_native!("boolean", 1, fn_boolean);
         bind_native!("ceil", 1, fn_ceil);
         bind_native!("contains", 2, fn_contains);
@@ -145,16 +147,15 @@ impl<'a> JsonAta<'a> {
         bind_native!("not", 1, fn_not);
         bind_native!("number", 1, fn_number);
         bind_native!("power", 2, fn_power);
+        bind_native!("replace", 4, fn_replace);
         bind_native!("reverse", 1, fn_reverse);
         bind_native!("sort", 2, fn_sort);
-        bind_native!("string", 1, fn_string);
         bind_native!("sqrt", 1, fn_sqrt);
+        bind_native!("string", 1, fn_string);
         bind_native!("substring", 3, fn_substring);
         bind_native!("sum", 1, fn_sum);
         bind_native!("trim", 1, fn_trim);
         bind_native!("uppercase", 1, fn_uppercase);
-        bind_native!("base64encode", 1, fn_base64_encode);
-        bind_native!("base64decode", 1, fn_base64_decode);
 
         let chain_ast = Some(parser::parse(
             "function($f, $g) { function($x){ $g($f($x)) } }",
