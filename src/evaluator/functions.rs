@@ -636,6 +636,54 @@ pub fn fn_replace<'a>(
     Ok(Value::string(context.arena, replaced_string))
 }
 
+pub fn fn_split<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &'a Value<'a>,
+) -> Result<&'a Value<'a>> {
+    let str_value = &args[0];
+    let separator_value = &args[1];
+    let limit_value = &args[2];
+
+    if str_value.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    assert_arg!(str_value.is_string(), context, 1);
+    assert_arg!(separator_value.is_string(), context, 2);
+
+    let str_value = str_value.as_str();
+    let separator_value = separator_value.as_str();
+    let limit_value = if limit_value.is_undefined() {
+        None
+    } else {
+        assert_arg!(limit_value.is_number(), context, 4);
+        if limit_value.as_isize().is_negative() {
+            return Err(Error::D3020NegativeLimit(context.char_index));
+        }
+        Some(limit_value.as_isize())
+    };
+
+    let substrings: Vec<&str> = if let Some(limit) = limit_value {
+        str_value
+            .split(&separator_value.to_string())
+            .take(limit as usize)
+            .collect()
+    } else {
+        str_value.split(&separator_value.to_string()).collect()
+    };
+
+    let substrings_count = substrings.len();
+
+    let result = Value::array_with_capacity(context.arena, substrings_count, ArrayFlags::empty());
+    for (index, substring) in substrings.into_iter().enumerate() {
+        if substring.is_empty() && (index == 0 || index == substrings_count - 1) {
+            continue;
+        }
+        result.push(Value::string(context.arena, substring));
+    }
+    Ok(result)
+}
+
 pub fn fn_abs<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
     let arg = &args[0];
 

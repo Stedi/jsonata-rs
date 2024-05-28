@@ -150,6 +150,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("replace", 4, fn_replace);
         bind_native!("reverse", 1, fn_reverse);
         bind_native!("sort", 2, fn_sort);
+        bind_native!("split", 3, fn_split);
         bind_native!("sqrt", 1, fn_sqrt);
         bind_native!("string", 1, fn_string);
         bind_native!("substring", 3, fn_substring);
