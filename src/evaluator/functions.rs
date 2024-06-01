@@ -1201,3 +1201,37 @@ pub fn fn_base64_decode<'a>(
 
     Ok(Value::string(context.arena, &decoded))
 }
+
+pub fn fn_round<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 2);
+    let number = &args[0];
+    if number.is_undefined() {
+        return Ok(Value::undefined());
+    }
+    assert_arg!(number.is_number(), context, 1);
+
+    let precision = if let Some(precision) = args.get(1) {
+        assert_arg!(precision.is_integer(), context, 2);
+        precision.as_isize()
+    } else {
+        0
+    };
+
+    let num = multiply_by_pow10(number.as_f64(), precision)?;
+    let num = num.round_ties_even();
+    let num = multiply_by_pow10(num, -precision)?;
+
+    Ok(Value::number(context.arena, num))
+}
+
+// We need to do this multiplication by powers of 10 in a string to avoid
+// floating point precision errors which will affect the rounding algorithm
+fn multiply_by_pow10(num: f64, pow: isize) -> Result<f64> {
+    let num_str = format!("{}e{}", num, pow);
+    num_str
+        .parse::<f64>()
+        .map_err(|e| Error::D3137Error(e.to_string()))
+}
