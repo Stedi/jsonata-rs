@@ -38,25 +38,23 @@ Then you can evaluate an expression with JSON input like this:
 use bumpalo::Bump;
 use jsonata_rs::JsonAta;
 
-fn main() {
-    // Create an arena for allocating values, this will go away in future except for advanced use cases
-    let arena = Bump::new();
+// Create an arena for allocating values, this will go away in future except for advanced use cases
+let arena = Bump::new();
 
-    // Provide some JSON input, this could be read from a file or come from the network
-    let input = "{ \"name\": \"world\" }";
+// Provide some JSON input, this could be read from a file or come from the network
+let input = "{ \"name\": \"world\" }";
 
-    // The JSONata expression to evaluate
-    let expr = "\"Hello, \" & name & \"!\"";
+// The JSONata expression to evaluate
+let expr = "\"Hello, \" & name & \"!\"";
 
-    // Parse the expression - this could fail
-    let jsonata = JsonAta::new(expr, &arena).unwrap();
+// Parse the expression - this could fail
+let jsonata = JsonAta::new(expr, &arena).unwrap();
 
-    // Evaluate the expression against the input - this could fail
-    let result = jsonata.evaluate(Some(input)).unwrap();
+// Evaluate the expression against the input - this could fail
+let result = jsonata.evaluate(Some(input)).unwrap();
 
-    // Serialize the result into JSON
-    println!("{}", result.serialize(false));
-}
+// Serialize the result into JSON
+println!("{}", result.serialize(false));
 ```
 
 There's also a basic CLI tool:
