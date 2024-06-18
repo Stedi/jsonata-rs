@@ -4,3 +4,4 @@ Cargo.lock
 .vscode
 .nvimrc
 .data
+.idea
