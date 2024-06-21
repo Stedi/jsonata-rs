@@ -98,7 +98,7 @@ impl<'a> Evaluator<'a> {
         let mut result = match node.kind {
             AstKind::Null => Value::null(self.arena),
             AstKind::Bool(b) => Value::bool(self.arena, b),
-            AstKind::String(ref s) => Value::string(self.arena, String::from(s)),
+            AstKind::String(ref s) => Value::string(self.arena, s),
             AstKind::Number(n) => Value::number(self.arena, n),
             AstKind::Block(ref exprs) => self.evaluate_block(exprs, input, frame)?,
             AstKind::Unary(ref op) => self.evaluate_unary_op(node, op, input, frame)?,
@@ -557,7 +557,7 @@ impl<'a> Evaluator<'a> {
                         .as_str(),
                     );
                 }
-                Ok(Value::string(self.arena, result))
+                Ok(Value::string(self.arena, &result))
             }
 
             BinaryOp::And => Ok(Value::bool(
@@ -767,7 +767,7 @@ impl<'a> Evaluator<'a> {
             return Ok(result);
         }
 
-        let result = Value::array(self.arena, ArrayFlags::SEQUENCE);
+        let result = Value::array_with_capacity(self.arena, input.len(), ArrayFlags::SEQUENCE);
 
         // Evaluate the step on each member of the input
         for (item_index, item) in input.members().enumerate() {
@@ -799,7 +799,8 @@ impl<'a> Evaluator<'a> {
                 result.get_member(0)
             } else {
                 // Flatten the result sequence
-                let result_sequence = Value::array(self.arena, ArrayFlags::SEQUENCE);
+                let result_sequence =
+                    Value::array_with_capacity(self.arena, result.len(), ArrayFlags::SEQUENCE);
 
                 for result_item in result.members() {
                     if !result_item.is_array() || result_item.has_flags(ArrayFlags::CONS) {

@@ -1,9 +1,11 @@
 use std::borrow::Cow;
-use std::collections::{hash_map, HashMap};
 
 use bitflags::bitflags;
 use bumpalo::boxed::Box;
+use bumpalo::collections::String as BumpString;
 use bumpalo::Bump;
+use hashbrown::hash_map::DefaultHashBuilder;
+use hashbrown::HashMap;
 
 use super::frame::Frame;
 use super::functions::FunctionContext;
@@ -43,9 +45,9 @@ pub enum Value<'a> {
     Null,
     Number(f64),
     Bool(bool),
-    String(String),
-    Array(Box<'a, Vec<&'a Value<'a>>>, ArrayFlags),
-    Object(Box<'a, HashMap<String, &'a Value<'a>>>),
+    String(bumpalo::collections::String<'a>),
+    Array(bumpalo::collections::Vec<'a, &'a Value<'a>>, ArrayFlags),
+    Object(HashMap<bumpalo::collections::String<'a>, &'a Value<'a>, DefaultHashBuilder, &'a Bump>),
     Range(Range<'a>),
     Lambda {
         ast: Box<'a, Ast>,
@@ -84,12 +86,15 @@ impl<'a> Value<'a> {
         arena.alloc(Value::Number(value.into()))
     }
 
-    pub fn string(arena: &Bump, value: impl Into<String>) -> &mut Value {
-        arena.alloc(Value::String(value.into()))
+    pub fn string(arena: &'a Bump, value: &str) -> &'a mut Value<'a> {
+        arena.alloc(Value::String(bumpalo::collections::String::from_str_in(
+            value, arena,
+        )))
     }
 
     pub fn array(arena: &Bump, flags: ArrayFlags) -> &mut Value {
-        arena.alloc(Value::Array(Box::new_in(Vec::new(), arena), flags))
+        let v = bumpalo::collections::Vec::new_in(arena);
+        arena.alloc(Value::Array(v, flags))
     }
 
     pub fn array_from(
@@ -106,17 +111,17 @@ impl<'a> Value<'a> {
 
     pub fn array_with_capacity(arena: &Bump, capacity: usize, flags: ArrayFlags) -> &mut Value {
         arena.alloc(Value::Array(
-            Box::new_in(Vec::with_capacity(capacity), arena),
+            bumpalo::collections::Vec::with_capacity_in(capacity, arena),
             flags,
         ))
     }
 
     pub fn object(arena: &Bump) -> &mut Value {
-        arena.alloc(Value::Object(Box::new_in(HashMap::new(), arena)))
+        arena.alloc(Value::Object(HashMap::new_in(arena)))
     }
 
-    pub fn object_from(
-        hash: &HashMap<String, &'a Value<'a>>,
+    pub fn object_from<H>(
+        hash: &HashMap<BumpString<'a>, &'a Value<'a>, H, &'a Bump>,
         arena: &'a Bump,
     ) -> &'a mut Value<'a> {
         let result = Value::object_with_capacity(arena, hash.len());
@@ -127,10 +132,7 @@ impl<'a> Value<'a> {
     }
 
     pub fn object_with_capacity(arena: &Bump, capacity: usize) -> &mut Value {
-        arena.alloc(Value::Object(Box::new_in(
-            HashMap::with_capacity(capacity),
-            arena,
-        )))
+        arena.alloc(Value::Object(HashMap::with_capacity_in(capacity, arena)))
     }
 
     pub fn lambda(
@@ -326,7 +328,9 @@ impl<'a> Value<'a> {
         }
     }
 
-    pub fn entries(&self) -> hash_map::Iter<'_, String, &'a Value> {
+    pub fn entries(
+        &self,
+    ) -> hashbrown::hash_map::Iter<'_, bumpalo::collections::String<'a>, &'a Value> {
         match self {
             Value::Object(map) => map.iter(),
             _ => panic!("Not an object"),
@@ -380,7 +384,7 @@ impl<'a> Value<'a> {
 
     pub fn as_str(&self) -> Cow<'_, str> {
         match *self {
-            Value::String(ref s) => Cow::from(s),
+            Value::String(ref s) => Cow::from(s.as_str()),
             _ => panic!("Not a string"),
         }
     }
@@ -428,7 +432,7 @@ impl<'a> Value<'a> {
     pub fn insert(&mut self, key: &str, value: &'a Value<'a>) {
         match *self {
             Value::Object(ref mut map) => {
-                map.insert(key.to_owned(), value);
+                map.insert(BumpString::from_str_in(key, map.allocator()), value);
             }
             _ => panic!("Not an object"),
         }
@@ -465,7 +469,7 @@ impl<'a> Value<'a> {
         value: &'a Value<'a>,
         flags: ArrayFlags,
     ) -> &'a mut Value<'a> {
-        arena.alloc(Value::Array(Box::new_in(vec![value], arena), flags))
+        arena.alloc(Value::Array(bumpalo::vec![in arena; value], flags))
     }
 
     pub fn wrap_in_array_if_needed(
@@ -500,7 +504,10 @@ impl<'a> Value<'a> {
             Self::Null => Value::null(arena),
             Self::Number(n) => Value::number(arena, *n),
             Self::Bool(b) => Value::bool(arena, *b),
-            Self::String(s) => Value::string(arena, s),
+            // TODO: clean up
+            Self::String(s) => arena.alloc(Value::String(
+                bumpalo::collections::String::from_str_in(s.as_str(), arena),
+            )),
             Self::Array(a, f) => Value::array_from(a, arena, f.clone()),
             Self::Object(o) => Value::object_from(o, arena),
             Self::Lambda { ast, input, frame } => Value::lambda(arena, ast, input, frame.clone()),
@@ -516,10 +523,7 @@ impl<'a> Value<'a> {
 
     pub fn clone_array_with_flags(&self, arena: &'a Bump, flags: ArrayFlags) -> &'a mut Value<'a> {
         match *self {
-            Value::Array(ref array, _) => arena.alloc(Value::Array(
-                Box::new_in(array.as_ref().clone(), arena),
-                flags,
-            )),
+            Value::Array(ref array, _) => arena.alloc(Value::Array(array.clone(), flags)),
             _ => panic!("Not an array"),
         }
     }
