@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use bitflags::bitflags;
 use bumpalo::boxed::Box;
+use bumpalo::collections::String as BumpString;
 use bumpalo::Bump;
 use hashbrown::hash_map::DefaultHashBuilder;
 use hashbrown::HashMap;
@@ -46,7 +47,7 @@ pub enum Value<'a> {
     Bool(bool),
     String(bumpalo::collections::String<'a>),
     Array(bumpalo::collections::Vec<'a, &'a Value<'a>>, ArrayFlags),
-    Object(HashMap<String, &'a Value<'a>, DefaultHashBuilder, &'a Bump>),
+    Object(HashMap<bumpalo::collections::String<'a>, &'a Value<'a>, DefaultHashBuilder, &'a Bump>),
     Range(Range<'a>),
     Lambda {
         ast: Box<'a, Ast>,
@@ -120,7 +121,7 @@ impl<'a> Value<'a> {
     }
 
     pub fn object_from<H>(
-        hash: &HashMap<String, &'a Value<'a>, H, &'a Bump>,
+        hash: &HashMap<BumpString<'a>, &'a Value<'a>, H, &'a Bump>,
         arena: &'a Bump,
     ) -> &'a mut Value<'a> {
         let result = Value::object_with_capacity(arena, hash.len());
@@ -327,7 +328,9 @@ impl<'a> Value<'a> {
         }
     }
 
-    pub fn entries(&self) -> hashbrown::hash_map::Iter<'_, String, &'a Value> {
+    pub fn entries(
+        &self,
+    ) -> hashbrown::hash_map::Iter<'_, bumpalo::collections::String<'a>, &'a Value> {
         match self {
             Value::Object(map) => map.iter(),
             _ => panic!("Not an object"),
@@ -429,7 +432,7 @@ impl<'a> Value<'a> {
     pub fn insert(&mut self, key: &str, value: &'a Value<'a>) {
         match *self {
             Value::Object(ref mut map) => {
-                map.insert(key.to_owned(), value);
+                map.insert(BumpString::from_str_in(key, map.allocator()), value);
             }
             _ => panic!("Not an object"),
         }
@@ -501,10 +504,10 @@ impl<'a> Value<'a> {
             Self::Null => Value::null(arena),
             Self::Number(n) => Value::number(arena, *n),
             Self::Bool(b) => Value::bool(arena, *b),
+            // TODO: clean up
             Self::String(s) => arena.alloc(Value::String(
                 bumpalo::collections::String::from_str_in(s.as_str(), arena),
             )),
-            // Self::String(s) => Value::string(arena, s),
             Self::Array(a, f) => Value::array_from(a, arena, f.clone()),
             Self::Object(o) => Value::object_from(o, arena),
             Self::Lambda { ast, input, frame } => Value::lambda(arena, ast, input, frame.clone()),

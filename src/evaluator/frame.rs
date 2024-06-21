@@ -23,7 +23,7 @@ impl<'a> Frame<'a> {
     pub fn from_tuple(parent: &Frame<'a>, tuple: &'a Value<'a>) -> Frame<'a> {
         let mut bindings = HashMap::with_capacity(tuple.entries().len());
         for (key, value) in tuple.entries() {
-            bindings.insert(key.clone(), *value);
+            bindings.insert(key.to_string(), *value);
         }
 
         Frame(Rc::new(RefCell::new(FrameData {
