@@ -44,7 +44,7 @@ pub enum Value<'a> {
     Number(f64),
     Bool(bool),
     String(bumpalo::collections::String<'a>),
-    Array(Box<'a, Vec<&'a Value<'a>>>, ArrayFlags),
+    Array(bumpalo::collections::Vec<'a, &'a Value<'a>>, ArrayFlags),
     Object(Box<'a, HashMap<String, &'a Value<'a>>>),
     Range(Range<'a>),
     Lambda {
@@ -91,7 +91,8 @@ impl<'a> Value<'a> {
     }
 
     pub fn array(arena: &Bump, flags: ArrayFlags) -> &mut Value {
-        arena.alloc(Value::Array(Box::new_in(Vec::new(), arena), flags))
+        let v = bumpalo::collections::Vec::new_in(arena);
+        arena.alloc(Value::Array(v, flags))
     }
 
     pub fn array_from(
@@ -108,7 +109,7 @@ impl<'a> Value<'a> {
 
     pub fn array_with_capacity(arena: &Bump, capacity: usize, flags: ArrayFlags) -> &mut Value {
         arena.alloc(Value::Array(
-            Box::new_in(Vec::with_capacity(capacity), arena),
+            bumpalo::collections::Vec::with_capacity_in(capacity, arena),
             flags,
         ))
     }
@@ -467,7 +468,7 @@ impl<'a> Value<'a> {
         value: &'a Value<'a>,
         flags: ArrayFlags,
     ) -> &'a mut Value<'a> {
-        arena.alloc(Value::Array(Box::new_in(vec![value], arena), flags))
+        arena.alloc(Value::Array(bumpalo::vec![in arena; value], flags))
     }
 
     pub fn wrap_in_array_if_needed(
@@ -521,10 +522,7 @@ impl<'a> Value<'a> {
 
     pub fn clone_array_with_flags(&self, arena: &'a Bump, flags: ArrayFlags) -> &'a mut Value<'a> {
         match *self {
-            Value::Array(ref array, _) => arena.alloc(Value::Array(
-                Box::new_in(array.as_ref().clone(), arena),
-                flags,
-            )),
+            Value::Array(ref array, _) => arena.alloc(Value::Array(array.clone(), flags)),
             _ => panic!("Not an array"),
         }
     }
