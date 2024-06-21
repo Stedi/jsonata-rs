@@ -309,7 +309,7 @@ pub fn fn_each<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
 
     for (key, value) in obj.entries() {
         let args = Value::array(context.arena, ArrayFlags::empty());
-        let key = Value::string(context.arena, key.to_string());
+        let key = Value::string(context.arena, key);
 
         args.push(value);
         args.push(key);
@@ -357,7 +357,7 @@ pub fn fn_keys<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
 
     let result = Value::array(context.arena, ArrayFlags::SEQUENCE);
     for key in keys {
-        result.push(Value::string(context.arena, key));
+        result.push(Value::string(context.arena, &key));
     }
 
     Ok(result)
@@ -429,17 +429,17 @@ pub fn fn_string<'a>(
     if input.is_string() {
         Ok(input)
     } else if input.is_function() {
-        Ok(Value::string(context.arena, String::from("")))
+        Ok(Value::string(context.arena, ""))
     } else if input.is_number() && !input.is_finite() {
         Err(Error::D3001StringNotFinite(context.char_index))
     } else if *pretty == true {
         let serializer = Serializer::new(PrettyFormatter::default(), true);
         let output = serializer.serialize(input)?;
-        Ok(Value::string(context.arena, output))
+        Ok(Value::string(context.arena, &output))
     } else {
         let serializer = Serializer::new(DumpFormatter, true);
         let output = serializer.serialize(input)?;
-        Ok(Value::string(context.arena, output))
+        Ok(Value::string(context.arena, &output))
     }
 }
 
@@ -462,7 +462,7 @@ pub fn fn_lowercase<'a>(
     Ok(if !arg.is_string() {
         Value::undefined()
     } else {
-        Value::string(context.arena, arg.as_str().to_lowercase())
+        Value::string(context.arena, &arg.as_str().to_lowercase())
     })
 }
 
@@ -475,7 +475,7 @@ pub fn fn_uppercase<'a>(
     if !arg.is_string() {
         Ok(Value::undefined())
     } else {
-        Ok(Value::string(context.arena, arg.as_str().to_uppercase()))
+        Ok(Value::string(context.arena, &arg.as_str().to_uppercase()))
     }
 }
 
@@ -501,7 +501,7 @@ pub fn fn_trim<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
                 result
             }
         };
-        Ok(Value::string(context.arena, trimmed))
+        Ok(Value::string(context.arena, &trimmed))
     }
 }
 
@@ -538,16 +538,13 @@ pub fn fn_substring<'a>(
     let start = if start < 0 { len + start } else { start };
 
     if length.is_undefined() {
-        Ok(Value::string(
-            context.arena,
-            string[start as usize..].to_string(),
-        ))
+        Ok(Value::string(context.arena, &string[start as usize..]))
     } else {
         assert_arg!(length.is_number(), context, 3);
 
         let length = length.as_isize();
         if length < 0 {
-            Ok(Value::string(context.arena, String::from("")))
+            Ok(Value::string(context.arena, ""))
         } else {
             let end = if start >= 0 {
                 (start + length) as usize
@@ -561,7 +558,7 @@ pub fn fn_substring<'a>(
                 .take(end - start as usize)
                 .collect::<String>();
 
-            Ok(Value::string(context.arena, substring))
+            Ok(Value::string(context.arena, &substring))
         }
     }
 }
@@ -633,7 +630,7 @@ pub fn fn_replace<'a>(
         str_value.replace(&pattern_value.to_string(), &replacement_value)
     };
 
-    Ok(Value::string(context.arena, replaced_string))
+    Ok(Value::string(context.arena, &replaced_string))
 }
 
 pub fn fn_split<'a>(
@@ -1045,7 +1042,7 @@ pub fn fn_join<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
         }
     }
 
-    Ok(Value::string(context.arena, result))
+    Ok(Value::string(context.arena, &result))
 }
 
 pub fn fn_sort<'a, 'e>(
@@ -1165,7 +1162,7 @@ pub fn fn_base64_encode<'a>(
 
     let encoded = base64.encode(arg.as_str().as_bytes());
 
-    Ok(Value::string(context.arena, encoded))
+    Ok(Value::string(context.arena, &encoded))
 }
 
 pub fn fn_base64_decode<'a>(
@@ -1185,5 +1182,5 @@ pub fn fn_base64_decode<'a>(
     let data = decoded.map_err(|e| Error::D3137Error(e.to_string()))?;
     let decoded = String::from_utf8(data).map_err(|e| Error::D3137Error(e.to_string()))?;
 
-    Ok(Value::string(context.arena, decoded))
+    Ok(Value::string(context.arena, &decoded))
 }

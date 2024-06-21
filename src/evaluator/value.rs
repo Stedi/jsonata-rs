@@ -43,7 +43,7 @@ pub enum Value<'a> {
     Null,
     Number(f64),
     Bool(bool),
-    String(String),
+    String(bumpalo::collections::String<'a>),
     Array(Box<'a, Vec<&'a Value<'a>>>, ArrayFlags),
     Object(Box<'a, HashMap<String, &'a Value<'a>>>),
     Range(Range<'a>),
@@ -84,8 +84,10 @@ impl<'a> Value<'a> {
         arena.alloc(Value::Number(value.into()))
     }
 
-    pub fn string(arena: &Bump, value: impl Into<String>) -> &mut Value {
-        arena.alloc(Value::String(value.into()))
+    pub fn string(arena: &'a Bump, value: &str) -> &'a mut Value<'a> {
+        arena.alloc(Value::String(bumpalo::collections::String::from_str_in(
+            value, arena,
+        )))
     }
 
     pub fn array(arena: &Bump, flags: ArrayFlags) -> &mut Value {
@@ -380,7 +382,7 @@ impl<'a> Value<'a> {
 
     pub fn as_str(&self) -> Cow<'_, str> {
         match *self {
-            Value::String(ref s) => Cow::from(s),
+            Value::String(ref s) => Cow::from(s.as_str()),
             _ => panic!("Not a string"),
         }
     }
@@ -500,7 +502,10 @@ impl<'a> Value<'a> {
             Self::Null => Value::null(arena),
             Self::Number(n) => Value::number(arena, *n),
             Self::Bool(b) => Value::bool(arena, *b),
-            Self::String(s) => Value::string(arena, s),
+            Self::String(s) => arena.alloc(Value::String(
+                bumpalo::collections::String::from_str_in(s.as_str(), arena),
+            )),
+            // Self::String(s) => Value::string(arena, s),
             Self::Array(a, f) => Value::array_from(a, arena, f.clone()),
             Self::Object(o) => Value::object_from(o, arena),
             Self::Lambda { ast, input, frame } => Value::lambda(arena, ast, input, frame.clone()),
