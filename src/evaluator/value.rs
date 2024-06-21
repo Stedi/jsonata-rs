@@ -1,9 +1,10 @@
 use std::borrow::Cow;
-use std::collections::{hash_map, HashMap};
 
 use bitflags::bitflags;
 use bumpalo::boxed::Box;
 use bumpalo::Bump;
+use hashbrown::hash_map::DefaultHashBuilder;
+use hashbrown::HashMap;
 
 use super::frame::Frame;
 use super::functions::FunctionContext;
@@ -45,7 +46,7 @@ pub enum Value<'a> {
     Bool(bool),
     String(bumpalo::collections::String<'a>),
     Array(bumpalo::collections::Vec<'a, &'a Value<'a>>, ArrayFlags),
-    Object(Box<'a, HashMap<String, &'a Value<'a>>>),
+    Object(HashMap<String, &'a Value<'a>, DefaultHashBuilder, &'a Bump>),
     Range(Range<'a>),
     Lambda {
         ast: Box<'a, Ast>,
@@ -115,11 +116,11 @@ impl<'a> Value<'a> {
     }
 
     pub fn object(arena: &Bump) -> &mut Value {
-        arena.alloc(Value::Object(Box::new_in(HashMap::new(), arena)))
+        arena.alloc(Value::Object(HashMap::new_in(arena)))
     }
 
-    pub fn object_from(
-        hash: &HashMap<String, &'a Value<'a>>,
+    pub fn object_from<H>(
+        hash: &HashMap<String, &'a Value<'a>, H, &'a Bump>,
         arena: &'a Bump,
     ) -> &'a mut Value<'a> {
         let result = Value::object_with_capacity(arena, hash.len());
@@ -130,10 +131,7 @@ impl<'a> Value<'a> {
     }
 
     pub fn object_with_capacity(arena: &Bump, capacity: usize) -> &mut Value {
-        arena.alloc(Value::Object(Box::new_in(
-            HashMap::with_capacity(capacity),
-            arena,
-        )))
+        arena.alloc(Value::Object(HashMap::with_capacity_in(capacity, arena)))
     }
 
     pub fn lambda(
@@ -329,7 +327,7 @@ impl<'a> Value<'a> {
         }
     }
 
-    pub fn entries(&self) -> hash_map::Iter<'_, String, &'a Value> {
+    pub fn entries(&self) -> hashbrown::hash_map::Iter<'_, String, &'a Value> {
         match self {
             Value::Object(map) => map.iter(),
             _ => panic!("Not an object"),
