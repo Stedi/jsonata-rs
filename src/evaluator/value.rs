@@ -22,7 +22,7 @@ use self::serialize::{DumpFormatter, PrettyFormatter, Serializer};
 pub use iterator::MemberIterator;
 
 bitflags! {
-    #[derive(Clone)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct ArrayFlags: u8 {
         const SEQUENCE     = 0b00000001;
         const SINGLETON    = 0b00000010;
@@ -57,7 +57,7 @@ pub enum Value<'a> {
     NativeFn {
         name: String,
         arity: usize,
-        func: fn(FunctionContext<'a, '_>, &'a Value<'a>) -> Result<&'a Value<'a>>,
+        func: fn(FunctionContext<'a, '_>, &[&'a Value<'a>]) -> Result<&'a Value<'a>>,
     },
     Transformer {
         pattern: std::boxed::Box<Ast>,
@@ -152,7 +152,7 @@ impl<'a> Value<'a> {
         arena: &'a Bump,
         name: &str,
         arity: usize,
-        func: fn(FunctionContext<'a, '_>, &'a Value<'a>) -> Result<&'a Value<'a>>,
+        func: fn(FunctionContext<'a, '_>, &[&'a Value<'a>]) -> Result<&'a Value<'a>>,
     ) -> &'a mut Value<'a> {
         arena.alloc(Value::NativeFn {
             name: name.to_string(),
@@ -486,7 +486,7 @@ impl<'a> Value<'a> {
 
     pub fn get_flags(&self) -> ArrayFlags {
         match self {
-            Value::Array(_, flags) => flags.clone(),
+            Value::Array(_, flags) => *flags,
             _ => panic!("Not an array"),
         }
     }
@@ -508,7 +508,7 @@ impl<'a> Value<'a> {
             Self::String(s) => arena.alloc(Value::String(
                 bumpalo::collections::String::from_str_in(s.as_str(), arena),
             )),
-            Self::Array(a, f) => Value::array_from(a, arena, f.clone()),
+            Self::Array(a, f) => Value::array_from(a, arena, *f),
             Self::Object(o) => Value::object_from(o, arena),
             Self::Lambda { ast, input, frame } => Value::lambda(arena, ast, input, frame.clone()),
             Self::NativeFn { name, arity, func } => Value::nativefn(arena, name, *arity, *func),

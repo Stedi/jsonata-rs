@@ -43,7 +43,7 @@ impl<'a> JsonAta<'a> {
         &self,
         name: &str,
         arity: usize,
-        implementation: fn(FunctionContext<'a, '_>, &'a Value<'a>) -> Result<&'a Value<'a>>,
+        implementation: fn(FunctionContext<'a, '_>, &[&'a Value<'a>]) -> Result<&'a Value<'a>>,
     ) {
         self.frame.bind(
             name,

@@ -310,11 +310,10 @@ impl<'a> Evaluator<'a> {
                         if group.index != index {
                             return Err(Error::D1009MultipleKeys(char_index, key.to_string()));
                         }
-                        let args = Value::array_with_capacity(self.arena, 2, ArrayFlags::empty());
-                        args.push(group.data);
-                        args.push(item);
-                        group.data =
-                            fn_append(self.fn_context("append", char_index, input, frame), args)?;
+                        group.data = fn_append(
+                            self.fn_context("append", char_index, input, frame),
+                            &[group.data, item],
+                        )?;
                     }
                     hash_map::Entry::Vacant(entry) => {
                         entry.insert(Group { data: item, index });
@@ -363,11 +362,10 @@ impl<'a> Evaluator<'a> {
         }
         for i in 1..tuple_stream.len() {
             for (key, value) in tuple_stream[i].entries() {
-                let args = Value::array_with_capacity(self.arena, 2, ArrayFlags::empty());
-                args.push(result.get_entry(&key[..]));
-                args.push(value);
-                let new_value =
-                    fn_append(self.fn_context("append", char_index, input, frame), args)?;
+                let new_value = fn_append(
+                    self.fn_context("append", char_index, input, frame),
+                    &[result.get_entry(&key[..]), value],
+                )?;
                 result.insert(key, new_value);
             }
         }
@@ -543,7 +541,7 @@ impl<'a> Evaluator<'a> {
                     result.push_str(
                         &fn_string(
                             self.fn_context("string", node.char_index, input, frame),
-                            Value::wrap_in_array(self.arena, lhs, ArrayFlags::empty()),
+                            &[lhs],
                         )?
                         .as_str(),
                     );
@@ -552,7 +550,7 @@ impl<'a> Evaluator<'a> {
                     result.push_str(
                         &fn_string(
                             self.fn_context("string", node.char_index, input, frame),
-                            Value::wrap_in_array(self.arena, rhs, ArrayFlags::empty()),
+                            &[rhs],
                         )?
                         .as_str(),
                     );
@@ -595,25 +593,19 @@ impl<'a> Evaluator<'a> {
                             frame,
                         )?;
 
-                        let args = Value::array_with_capacity(self.arena, 2, ArrayFlags::empty());
-                        args.push(lhs);
-                        args.push(rhs);
-
                         Ok(self.apply_function(
                             lhs_ast.char_index,
                             Value::undefined(),
                             chain,
-                            args,
+                            &[lhs, rhs],
                             frame,
                         )?)
                     } else {
-                        let args = Value::array_with_capacity(self.arena, 1, ArrayFlags::empty());
-                        args.push(lhs);
                         Ok(self.apply_function(
                             rhs_ast.char_index,
                             Value::undefined(),
                             rhs,
-                            args,
+                            &[lhs],
                             frame,
                         )?)
                     }
@@ -730,7 +722,7 @@ impl<'a> Evaluator<'a> {
                 result = Value::wrap_in_array(
                     self.arena,
                     result,
-                    flags.clone() | ArrayFlags::SEQUENCE | ArrayFlags::SINGLETON,
+                    flags | ArrayFlags::SEQUENCE | ArrayFlags::SINGLETON,
                 );
             }
             result = result.clone_array_with_flags(self.arena, flags | ArrayFlags::SINGLETON);
@@ -1209,8 +1201,7 @@ impl<'a> Evaluator<'a> {
             }
         }
 
-        let evaluated_args =
-            Value::array_with_capacity(self.arena, args.len(), ArrayFlags::empty());
+        let mut evaluated_args = Vec::with_capacity(args.len());
 
         if let Some(context) = context {
             evaluated_args.push(context);
@@ -1225,7 +1216,7 @@ impl<'a> Evaluator<'a> {
             proc.char_index,
             input,
             evaluated_proc,
-            evaluated_args,
+            &evaluated_args,
             frame,
         )?;
 
@@ -1249,8 +1240,7 @@ impl<'a> Evaluator<'a> {
                 } = body.kind
                 {
                     let next = self.evaluate(proc, lambda_input, lambda_frame)?;
-                    let evaluated_args =
-                        Value::array_with_capacity(self.arena, args.len(), ArrayFlags::empty());
+                    let mut evaluated_args = Vec::with_capacity(args.len());
 
                     for arg in args {
                         let arg = self.evaluate(arg, lambda_input, lambda_frame)?;
@@ -1258,7 +1248,7 @@ impl<'a> Evaluator<'a> {
                     }
 
                     result =
-                        self.apply_function(proc.char_index, input, next, evaluated_args, frame)?;
+                        self.apply_function(proc.char_index, input, next, &evaluated_args, frame)?;
                 } else {
                     unreachable!()
                 }
@@ -1275,7 +1265,7 @@ impl<'a> Evaluator<'a> {
         char_index: usize,
         input: &'a Value<'a>,
         evaluated_proc: &'a Value<'a>,
-        evaluated_args: &'a Value<'a>,
+        evaluated_args: &[&'a Value<'a>],
         frame: &Frame<'a>,
     ) -> Result<&'a Value<'a>> {
         match evaluated_proc {
@@ -1295,7 +1285,13 @@ impl<'a> Evaluator<'a> {
                     // Bind the arguments to their respective names
                     for (index, arg) in args.iter().enumerate() {
                         if let AstKind::Var(ref name) = arg.kind {
-                            frame.bind(name, evaluated_args.get_member(index));
+                            frame.bind(
+                                name,
+                                evaluated_args
+                                    .get(index)
+                                    .copied()
+                                    .unwrap_or_else(Value::undefined),
+                            );
                         } else {
                             unreachable!()
                         }

@@ -79,7 +79,7 @@ impl<'a, 'e> FunctionContext<'a, 'e> {
     pub fn evaluate_function(
         &self,
         proc: &'a Value<'a>,
-        args: &'a Value<'a>,
+        args: &[&'a Value<'a>],
     ) -> Result<&'a Value<'a>> {
         self.evaluator
             .apply_function(self.char_index, self.input, proc, args, &self.frame)
@@ -126,10 +126,10 @@ pub fn fn_append_internal<'a>(
 
 pub fn fn_append<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let arg1 = &args[0];
-    let arg2 = &args[1];
+    let arg1 = args.first().copied().unwrap_or_else(Value::undefined);
+    let arg2 = args.get(1).copied().unwrap_or_else(Value::undefined);
 
     if arg1.is_undefined() {
         return Ok(arg2);
@@ -169,11 +169,11 @@ pub fn fn_append<'a>(
 
 pub fn fn_boolean<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
 
-    let arg = &args[0];
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
     Ok(match arg {
         Value::Undefined => Value::undefined(),
         Value::Null => Value::bool(context.arena, false),
@@ -186,18 +186,10 @@ pub fn fn_boolean<'a>(
         Value::Object(ref obj) => Value::bool(context.arena, !obj.is_empty()),
         Value::Array { .. } => match arg.len() {
             0 => Value::bool(context.arena, false),
-            1 => fn_boolean(
-                context.clone(),
-                Value::wrap_in_array(context.arena, arg.get_member(0), ArrayFlags::empty()),
-            )?,
+            1 => fn_boolean(context.clone(), &[arg.get_member(0)])?,
             _ => {
                 for item in arg.members() {
-                    if fn_boolean(
-                        context.clone(),
-                        Value::wrap_in_array(context.arena, item, ArrayFlags::empty()),
-                    )?
-                    .as_bool()
-                    {
+                    if fn_boolean(context.clone(), &[item])?.as_bool() {
                         return Ok(Value::bool(context.arena, true));
                     }
                 }
@@ -211,9 +203,12 @@ pub fn fn_boolean<'a>(
     })
 }
 
-pub fn fn_map<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
-    let arr = &args[0];
-    let func = &args[1];
+pub fn fn_map<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    let arr = args.first().copied().unwrap_or_else(Value::undefined);
+    let func = args.get(1).copied().unwrap_or_else(Value::undefined);
 
     if arr.is_undefined() {
         return Ok(Value::undefined());
@@ -226,7 +221,7 @@ pub fn fn_map<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Resu
     let result = Value::array(context.arena, ArrayFlags::SEQUENCE);
 
     for (index, item) in arr.members().enumerate() {
-        let args = Value::array(context.arena, ArrayFlags::empty());
+        let mut args = Vec::new();
         let arity = func.arity();
 
         args.push(item);
@@ -237,7 +232,7 @@ pub fn fn_map<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Resu
             args.push(arr);
         }
 
-        let mapped = context.evaluate_function(func, args)?;
+        let mapped = context.evaluate_function(func, &args)?;
         if !mapped.is_undefined() {
             result.push(mapped);
         }
@@ -248,10 +243,10 @@ pub fn fn_map<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Resu
 
 pub fn fn_filter<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let arr = &args[0];
-    let func = &args[1];
+    let arr = args.first().copied().unwrap_or_else(Value::undefined);
+    let func = args.get(1).copied().unwrap_or_else(Value::undefined);
 
     if arr.is_undefined() {
         return Ok(Value::undefined());
@@ -264,7 +259,7 @@ pub fn fn_filter<'a>(
     let result = Value::array(context.arena, ArrayFlags::SEQUENCE);
 
     for (index, item) in arr.members().enumerate() {
-        let args = Value::array(context.arena, ArrayFlags::empty());
+        let mut args = Vec::new();
         let arity = func.arity();
 
         args.push(item);
@@ -275,7 +270,7 @@ pub fn fn_filter<'a>(
             args.push(arr);
         }
 
-        let include = context.evaluate_function(func, args)?;
+        let include = context.evaluate_function(func, &args)?;
 
         if include.is_truthy() {
             result.push(item);
@@ -285,7 +280,10 @@ pub fn fn_filter<'a>(
     Ok(result)
 }
 
-pub fn fn_each<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
+pub fn fn_each<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
     let (obj, func) = if args.len() == 1 {
         let obj_arg = if context.input.is_array() && context.input.has_flags(ArrayFlags::WRAPPED) {
             &context.input[0]
@@ -293,9 +291,9 @@ pub fn fn_each<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
             context.input
         };
 
-        (obj_arg, &args[0])
+        (obj_arg, args[0])
     } else {
-        (&args[0], &args[1])
+        (args[0], args[1])
     };
 
     if obj.is_undefined() {
@@ -308,13 +306,9 @@ pub fn fn_each<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
     let result = Value::array(context.arena, ArrayFlags::SEQUENCE);
 
     for (key, value) in obj.entries() {
-        let args = Value::array(context.arena, ArrayFlags::empty());
         let key = Value::string(context.arena, key);
 
-        args.push(value);
-        args.push(key);
-
-        let mapped = context.evaluate_function(func, args)?;
+        let mapped = context.evaluate_function(func, &[value, key])?;
         if !mapped.is_undefined() {
             result.push(mapped);
         }
@@ -323,7 +317,10 @@ pub fn fn_each<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
     Ok(result)
 }
 
-pub fn fn_keys<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
+pub fn fn_keys<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
     let obj = if args.is_empty() {
         if context.input.is_array() && context.input.has_flags(ArrayFlags::WRAPPED) {
             &context.input[0]
@@ -331,7 +328,7 @@ pub fn fn_keys<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
             context.input
         }
     } else {
-        &args[0]
+        args[0]
     };
 
     if obj.is_undefined() {
@@ -365,7 +362,7 @@ pub fn fn_keys<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
 
 pub fn fn_merge<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     let mut array_of_objects = if args.is_empty() {
         if context.input.is_array() && context.input.has_flags(ArrayFlags::WRAPPED) {
@@ -374,7 +371,7 @@ pub fn fn_merge<'a>(
             context.input
         }
     } else {
-        &args[0]
+        args[0]
     };
 
     if array_of_objects.is_undefined() {
@@ -405,7 +402,7 @@ pub fn fn_merge<'a>(
 
 pub fn fn_string<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     max_args!(context, args, 2);
 
@@ -416,14 +413,14 @@ pub fn fn_string<'a>(
             context.input
         }
     } else {
-        &args[0]
+        args.first().copied().unwrap_or_else(Value::undefined)
     };
 
     if input.is_undefined() {
         return Ok(Value::undefined());
     }
 
-    let pretty = &args[1];
+    let pretty = args.get(1).copied().unwrap_or_else(Value::undefined);
     assert_arg!(pretty.is_undefined() || pretty.is_bool(), context, 2);
 
     if input.is_string() {
@@ -443,8 +440,11 @@ pub fn fn_string<'a>(
     }
 }
 
-pub fn fn_not<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
-    let arg = &args[0];
+pub fn fn_not<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
 
     Ok(if arg.is_undefined() {
         Value::undefined()
@@ -455,9 +455,9 @@ pub fn fn_not<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Resu
 
 pub fn fn_lowercase<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let arg = &args[0];
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
 
     Ok(if !arg.is_string() {
         Value::undefined()
@@ -468,9 +468,9 @@ pub fn fn_lowercase<'a>(
 
 pub fn fn_uppercase<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let arg = &args[0];
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
 
     if !arg.is_string() {
         Ok(Value::undefined())
@@ -479,8 +479,11 @@ pub fn fn_uppercase<'a>(
     }
 }
 
-pub fn fn_trim<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
-    let arg = &args[0];
+pub fn fn_trim<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
 
     if !arg.is_string() {
         Ok(Value::undefined())
@@ -507,11 +510,11 @@ pub fn fn_trim<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
 
 pub fn fn_substring<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let string = &args[0];
-    let start = &args[1];
-    let length = &args[2];
+    let string = args.first().copied().unwrap_or_else(Value::undefined);
+    let start = args.get(1).copied().unwrap_or_else(Value::undefined);
+    let length = args.get(2).copied().unwrap_or_else(Value::undefined);
 
     if string.is_undefined() {
         return Ok(Value::undefined());
@@ -565,10 +568,10 @@ pub fn fn_substring<'a>(
 
 pub fn fn_contains<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let str_value = &args[0];
-    let token_value = &args[1];
+    let str_value = args.first().copied().unwrap_or_else(Value::undefined);
+    let token_value = args.get(1).copied().unwrap_or_else(Value::undefined);
 
     if str_value.is_undefined() {
         return Ok(Value::undefined());
@@ -588,12 +591,12 @@ pub fn fn_contains<'a>(
 
 pub fn fn_replace<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let str_value = &args[0];
-    let pattern_value = &args[1];
-    let replacement_value = &args[2];
-    let limit_value = &args[3];
+    let str_value = args.first().copied().unwrap_or_else(Value::undefined);
+    let pattern_value = args.get(1).copied().unwrap_or_else(Value::undefined);
+    let replacement_value = args.get(2).copied().unwrap_or_else(Value::undefined);
+    let limit_value = args.get(3).copied().unwrap_or_else(Value::undefined);
 
     if str_value.is_undefined() {
         return Ok(Value::undefined());
@@ -635,11 +638,11 @@ pub fn fn_replace<'a>(
 
 pub fn fn_split<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let str_value = &args[0];
-    let separator_value = &args[1];
-    let limit_value = &args[2];
+    let str_value = args.first().copied().unwrap_or_else(Value::undefined);
+    let separator_value = args.get(1).copied().unwrap_or_else(Value::undefined);
+    let limit_value = args.get(2).copied().unwrap_or_else(Value::undefined);
 
     if str_value.is_undefined() {
         return Ok(Value::undefined());
@@ -681,8 +684,11 @@ pub fn fn_split<'a>(
     Ok(result)
 }
 
-pub fn fn_abs<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
-    let arg = &args[0];
+pub fn fn_abs<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
 
     if arg.is_undefined() {
         return Ok(Value::undefined());
@@ -695,9 +701,9 @@ pub fn fn_abs<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Resu
 
 pub fn fn_floor<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let arg = &args[0];
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
 
     if arg.is_undefined() {
         return Ok(Value::undefined());
@@ -708,8 +714,11 @@ pub fn fn_floor<'a>(
     Ok(Value::number(context.arena, arg.as_f64().floor()))
 }
 
-pub fn fn_ceil<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
-    let arg = &args[0];
+pub fn fn_ceil<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
 
     if arg.is_undefined() {
         return Ok(Value::undefined());
@@ -749,38 +758,37 @@ pub fn fn_lookup_internal<'a>(
 
 pub fn fn_lookup<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let input = &args[0];
-    let key = &args[1];
+    let input = args.first().copied().unwrap_or_else(Value::undefined);
+    let key = args.get(1).copied().unwrap_or_else(Value::undefined);
     assert_arg!(key.is_string(), context, 2);
     Ok(fn_lookup_internal(context.clone(), input, &key.as_str()))
 }
 
 pub fn fn_count<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
 
-    let arg = &args[0];
+    let count = match args.first() {
+        Some(Value::Array(a, _)) => a.len() as f64,
+        Some(Value::Undefined) => 0.0,
+        Some(_) => 1.0,
+        None => 0.0,
+    };
 
-    Ok(Value::number(
-        context.arena,
-        if arg.is_undefined() {
-            0.0
-        } else if arg.is_array() {
-            arg.len() as f64
-        } else {
-            1.0
-        },
-    ))
+    Ok(Value::number(context.arena, count))
 }
 
-pub fn fn_max<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
+pub fn fn_max<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
 
-    let arg = &args[0];
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
 
     // $max(undefined) and $max([]) return undefined
     if arg.is_undefined() || (arg.is_array() && arg.is_empty()) {
@@ -798,10 +806,13 @@ pub fn fn_max<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Resu
     Ok(Value::number(context.arena, max))
 }
 
-pub fn fn_min<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
+pub fn fn_min<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
 
-    let arg = &args[0];
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
 
     // $min(undefined) and $min([]) return undefined
     if arg.is_undefined() || (arg.is_array() && arg.is_empty()) {
@@ -819,10 +830,13 @@ pub fn fn_min<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Resu
     Ok(Value::number(context.arena, min))
 }
 
-pub fn fn_sum<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
+pub fn fn_sum<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
 
-    let arg = &args[0];
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
 
     // $sum(undefined) returns undefined
     if arg.is_undefined() {
@@ -842,11 +856,11 @@ pub fn fn_sum<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Resu
 
 pub fn fn_number<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
 
-    let arg = &args[0];
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
 
     match arg {
         Value::Undefined => Ok(Value::undefined()),
@@ -870,12 +884,12 @@ pub fn fn_number<'a>(
 
 pub fn fn_exists<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     min_args!(context, args, 1);
     max_args!(context, args, 1);
 
-    let arg = &args[0];
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
 
     match arg {
         Value::Undefined => Ok(Value::bool(context.arena, false)),
@@ -885,10 +899,10 @@ pub fn fn_exists<'a>(
 
 pub fn fn_assert<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let condition = &args[0];
-    let message = &args[1];
+    let condition = args.first().copied().unwrap_or_else(Value::undefined);
+    let message = args.get(1).copied().unwrap_or_else(Value::undefined);
 
     assert_arg!(condition.is_bool(), context, 1);
 
@@ -905,9 +919,9 @@ pub fn fn_assert<'a>(
 
 pub fn fn_error<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let message = &args[0];
+    let message = args.first().copied().unwrap_or_else(Value::undefined);
 
     assert_arg!(message.is_undefined() || message.is_string(), context, 1);
 
@@ -920,11 +934,11 @@ pub fn fn_error<'a>(
 
 pub fn fn_length<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
 
-    let arg1 = &args[0];
+    let arg1 = args.first().copied().unwrap_or_else(Value::undefined);
 
     if arg1.is_undefined() {
         return Ok(Value::undefined());
@@ -938,10 +952,12 @@ pub fn fn_length<'a>(
     ))
 }
 
-pub fn fn_sqrt<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
+pub fn fn_sqrt<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
-
-    let arg1 = &args[0];
+    let arg1 = args.first().copied().unwrap_or_else(Value::undefined);
 
     if arg1.is_undefined() {
         return Ok(Value::undefined());
@@ -959,12 +975,12 @@ pub fn fn_sqrt<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
 
 pub fn fn_power<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     max_args!(context, args, 2);
 
-    let number = &args[0];
-    let exp = &args[1];
+    let number = args.first().copied().unwrap_or_else(Value::undefined);
+    let exp = args.get(1).copied().unwrap_or_else(Value::undefined);
 
     if number.is_undefined() {
         return Ok(Value::undefined());
@@ -988,11 +1004,11 @@ pub fn fn_power<'a>(
 
 pub fn fn_reverse<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
 
-    let arr = &args[0];
+    let arr = args.first().copied().unwrap_or_else(Value::undefined);
 
     if arr.is_undefined() {
         return Ok(Value::undefined());
@@ -1005,10 +1021,12 @@ pub fn fn_reverse<'a>(
     Ok(result)
 }
 
-pub fn fn_join<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Result<&'a Value<'a>> {
+pub fn fn_join<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
     max_args!(context, args, 2);
-
-    let strings = &args[0];
+    let strings = args.first().copied().unwrap_or_else(Value::undefined);
 
     if strings.is_undefined() {
         return Ok(Value::undefined());
@@ -1020,7 +1038,7 @@ pub fn fn_join<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
 
     assert_array_of_type!(strings.is_array(), context, 1, "string");
 
-    let separator = &args[1];
+    let separator = args.get(1).copied().unwrap_or_else(Value::undefined);
     assert_arg!(
         separator.is_undefined() || separator.is_string(),
         context,
@@ -1047,11 +1065,11 @@ pub fn fn_join<'a>(context: FunctionContext<'a, '_>, args: &'a Value<'a>) -> Res
 
 pub fn fn_sort<'a, 'e>(
     context: FunctionContext<'a, 'e>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     max_args!(context, args, 2);
 
-    let arr = &args[0];
+    let arr = args.first().copied().unwrap_or_else(Value::undefined);
 
     if arr.is_undefined() {
         return Ok(Value::undefined());
@@ -1069,7 +1087,7 @@ pub fn fn_sort<'a, 'e>(
     // at least it's just references.
 
     let unsorted = arr.members().collect::<Vec<&'a Value<'a>>>();
-    let sorted = if args[1].is_undefined() {
+    let sorted = if args.get(1).is_none() {
         merge_sort(
             unsorted,
             &|a: &'a Value<'a>, b: &'a Value<'a>| match (a, b) {
@@ -1079,13 +1097,10 @@ pub fn fn_sort<'a, 'e>(
             },
         )?
     } else {
-        let comparator = args.get_member(1);
+        let comparator = args.get(1).copied().unwrap_or_else(Value::undefined);
         assert_arg!(comparator.is_function(), context, 2);
         merge_sort(unsorted, &|a: &'a Value<'a>, b: &'a Value<'a>| {
-            let args = Value::array_with_capacity(context.arena, 2, ArrayFlags::empty());
-            args.push(a);
-            args.push(b);
-            let result = context.evaluate_function(comparator, args)?;
+            let result = context.evaluate_function(comparator, &[a, b])?;
             Ok(result.is_truthy())
         })?
     };
@@ -1149,10 +1164,10 @@ where
 
 pub fn fn_base64_encode<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
-    let arg = &args[0];
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
     if arg.is_undefined() {
         return Ok(Value::undefined());
     }
@@ -1167,10 +1182,10 @@ pub fn fn_base64_encode<'a>(
 
 pub fn fn_base64_decode<'a>(
     context: FunctionContext<'a, '_>,
-    args: &'a Value<'a>,
+    args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
-    let arg = &args[0];
+    let arg = args.first().copied().unwrap_or_else(Value::undefined);
     if arg.is_undefined() {
         return Ok(Value::undefined());
     }
