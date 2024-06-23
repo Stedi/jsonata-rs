@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use bitflags::bitflags;
 use bumpalo::boxed::Box;
 use bumpalo::collections::String as BumpString;
+use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
 use hashbrown::hash_map::DefaultHashBuilder;
 use hashbrown::HashMap;
@@ -45,9 +46,9 @@ pub enum Value<'a> {
     Null,
     Number(f64),
     Bool(bool),
-    String(bumpalo::collections::String<'a>),
-    Array(bumpalo::collections::Vec<'a, &'a Value<'a>>, ArrayFlags),
-    Object(HashMap<bumpalo::collections::String<'a>, &'a Value<'a>, DefaultHashBuilder, &'a Bump>),
+    String(BumpString<'a>),
+    Array(BumpVec<'a, &'a Value<'a>>, ArrayFlags),
+    Object(HashMap<BumpString<'a>, &'a Value<'a>, DefaultHashBuilder, &'a Bump>),
     Range(Range<'a>),
     Lambda {
         ast: Box<'a, Ast>,
@@ -87,31 +88,25 @@ impl<'a> Value<'a> {
     }
 
     pub fn string(arena: &'a Bump, value: &str) -> &'a mut Value<'a> {
-        arena.alloc(Value::String(bumpalo::collections::String::from_str_in(
-            value, arena,
-        )))
+        arena.alloc(Value::String(BumpString::from_str_in(value, arena)))
     }
 
     pub fn array(arena: &Bump, flags: ArrayFlags) -> &mut Value {
-        let v = bumpalo::collections::Vec::new_in(arena);
+        let v = BumpVec::new_in(arena);
         arena.alloc(Value::Array(v, flags))
     }
 
     pub fn array_from(
-        arr: &'a [&Value<'a>],
         arena: &'a Bump,
+        arr: BumpVec<'a, &'a Value<'a>>,
         flags: ArrayFlags,
     ) -> &'a mut Value<'a> {
-        let result = Value::array_with_capacity(arena, arr.len(), flags);
-        if let Value::Array(a, _) = result {
-            a.extend(arr);
-        }
-        result
+        arena.alloc(Value::Array(arr, flags))
     }
 
     pub fn array_with_capacity(arena: &Bump, capacity: usize, flags: ArrayFlags) -> &mut Value {
         arena.alloc(Value::Array(
-            bumpalo::collections::Vec::with_capacity_in(capacity, arena),
+            BumpVec::with_capacity_in(capacity, arena),
             flags,
         ))
     }
@@ -328,9 +323,7 @@ impl<'a> Value<'a> {
         }
     }
 
-    pub fn entries(
-        &self,
-    ) -> hashbrown::hash_map::Iter<'_, bumpalo::collections::String<'a>, &'a Value> {
+    pub fn entries(&self) -> hashbrown::hash_map::Iter<'_, BumpString<'a>, &'a Value> {
         match self {
             Value::Object(map) => map.iter(),
             _ => panic!("Not an object"),
@@ -505,10 +498,10 @@ impl<'a> Value<'a> {
             Self::Number(n) => Value::number(arena, *n),
             Self::Bool(b) => Value::bool(arena, *b),
             // TODO: clean up
-            Self::String(s) => arena.alloc(Value::String(
-                bumpalo::collections::String::from_str_in(s.as_str(), arena),
-            )),
-            Self::Array(a, f) => Value::array_from(a, arena, *f),
+            Self::String(s) => {
+                arena.alloc(Value::String(BumpString::from_str_in(s.as_str(), arena)))
+            }
+            Self::Array(a, f) => Value::array_from(arena, a.clone(), *f),
             Self::Object(o) => Value::object_from(o, arena),
             Self::Lambda { ast, input, frame } => Value::lambda(arena, ast, input, frame.clone()),
             Self::NativeFn { name, arity, func } => Value::nativefn(arena, name, *arity, *func),
