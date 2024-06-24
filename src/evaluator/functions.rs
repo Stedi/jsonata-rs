@@ -1,6 +1,7 @@
 use base64::Engine;
 use std::borrow::Borrow;
 
+use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
 
 use crate::{Error, Result};
@@ -86,42 +87,20 @@ impl<'a, 'e> FunctionContext<'a, 'e> {
     }
 }
 
-// Version of append that takes a mutable arg1 - this could probably be collapsed
-pub fn fn_append_internal<'a>(
-    context: FunctionContext<'a, '_>,
-    arg1: &'a mut Value<'a>,
-    arg2: &'a Value<'a>,
-) -> &'a mut Value<'a> {
-    if arg2.is_undefined() {
-        return arg1;
+/// Extend the given values with value.
+///
+/// If the value is a single value then, append the value as is.
+/// If the value is an array, extends values with the value's members.
+pub fn fn_append_internal<'a>(values: &mut BumpVec<&'a Value<'a>>, value: &'a Value<'a>) {
+    if value.is_undefined() {
+        return;
     }
 
-    let arg1_len = if arg1.is_array() { arg1.len() } else { 1 };
-    let arg2_len = if arg2.is_array() { arg2.len() } else { 1 };
-
-    let result = Value::array_with_capacity(
-        context.arena,
-        arg1_len + arg2_len,
-        if arg1.is_array() {
-            arg1.get_flags()
-        } else {
-            ArrayFlags::SEQUENCE
-        },
-    );
-
-    if arg1.is_array() {
-        arg1.members().for_each(|m| result.push(m));
-    } else {
-        result.push(&*arg1);
+    match value {
+        Value::Array(a, _) => values.extend_from_slice(a),
+        Value::Range(_) => values.extend(value.members()),
+        _ => values.push(value),
     }
-
-    if arg2.is_array() {
-        arg2.members().for_each(|m| result.push(m));
-    } else {
-        result.push(arg2);
-    }
-
-    result
 }
 
 pub fn fn_append<'a>(

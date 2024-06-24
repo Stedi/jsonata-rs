@@ -6,6 +6,7 @@ use frame::Frame;
 use functions::*;
 use value::{ArrayFlags, Value};
 
+use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
 use std::cell::RefCell;
 use std::collections::{hash_map, HashMap};
@@ -124,7 +125,7 @@ impl<'a> Evaluator<'a> {
                 is_partial,
                 ..
             } => self.evaluate_function(input, proc, args, is_partial, frame, None)?,
-            AstKind::Wildcard => self.evaluate_wildcard(node, input, frame)?,
+            AstKind::Wildcard => self.evaluate_wildcard(input)?,
             AstKind::Descendent => self.evaluate_descendants(input)?,
             AstKind::Transform {
                 ref pattern,
@@ -230,27 +231,22 @@ impl<'a> Evaluator<'a> {
                 }
             }
             UnaryOp::ArrayConstructor(ref array) => {
-                let mut result = Value::array(
-                    self.arena,
-                    if node.cons_array {
-                        ArrayFlags::CONS
-                    } else {
-                        ArrayFlags::empty()
-                    },
-                );
-                for item in array.iter() {
+                let mut values = BumpVec::new_in(self.arena);
+                for item in array {
                     let value = self.evaluate(item, input, frame)?;
                     if let AstKind::Unary(UnaryOp::ArrayConstructor(..)) = item.kind {
-                        result.push(value);
+                        values.push(value);
                     } else {
-                        result = fn_append_internal(
-                            self.fn_context("append", node.char_index, input, frame),
-                            result,
-                            value,
-                        );
+                        fn_append_internal(&mut values, value);
                     }
                 }
-                Ok(result)
+
+                let flags = if node.cons_array {
+                    ArrayFlags::CONS
+                } else {
+                    ArrayFlags::empty()
+                };
+                Ok(Value::array_from(self.arena, values, flags))
             }
             UnaryOp::ObjectConstructor(ref object) => {
                 self.evaluate_group_expression(node.char_index, object, input, frame)
@@ -1103,13 +1099,8 @@ impl<'a> Evaluator<'a> {
         Ok(result)
     }
 
-    fn evaluate_wildcard(
-        &self,
-        node: &Ast,
-        input: &'a Value<'a>,
-        frame: &Frame<'a>,
-    ) -> Result<&'a Value<'a>> {
-        let mut result = Value::array(self.arena, ArrayFlags::SEQUENCE);
+    fn evaluate_wildcard(&self, input: &'a Value<'a>) -> Result<&'a Value<'a>> {
+        let mut values = BumpVec::new_in(self.arena);
 
         let input = if input.is_array() && input.has_flags(ArrayFlags::WRAPPED) && !input.is_empty()
         {
@@ -1122,18 +1113,14 @@ impl<'a> Evaluator<'a> {
             for (_key, value) in input.entries() {
                 if value.is_array() {
                     let value = value.flatten(self.arena);
-                    result = fn_append_internal(
-                        self.fn_context("append", node.char_index, input, frame),
-                        result,
-                        value,
-                    );
+                    fn_append_internal(&mut values, value);
                 } else {
-                    result.push(value)
+                    values.push(value)
                 }
             }
         }
 
-        Ok(result)
+        Ok(Value::array_from(self.arena, values, ArrayFlags::SEQUENCE))
     }
 
     fn evaluate_descendants(&self, input: &'a Value<'a>) -> Result<&'a Value<'a>> {
