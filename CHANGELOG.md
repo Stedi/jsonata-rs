@@ -24,3 +24,7 @@ Adding support for base64 encoding decoding, thanks to nated0g for the contribut
 
 - Support for `jsonata.register_function`
 - Support for evaluation with bindings
+
+## [0.1.4] - 2024-06-24
+
+- Enhancements to improve performance
