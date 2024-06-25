@@ -755,7 +755,7 @@ impl<'a> Evaluator<'a> {
             return Ok(result);
         }
 
-        let result = Value::array_with_capacity(self.arena, input.len(), ArrayFlags::SEQUENCE);
+        let mut result: Vec<&'a Value<'a>> = Vec::new();
 
         // Evaluate the step on each member of the input
         for (item_index, item) in input.members().enumerate() {
@@ -781,16 +781,16 @@ impl<'a> Evaluator<'a> {
         Ok(
             if last_step
                 && result.len() == 1
-                && result.get_member(0).is_array()
-                && !result.get_member(0).has_flags(ArrayFlags::SEQUENCE)
+                && result[0].is_array()
+                && !result[0].has_flags(ArrayFlags::SEQUENCE)
             {
-                result.get_member(0)
+                result.remove(0)
             } else {
                 // Flatten the result sequence
                 let result_sequence =
                     Value::array_with_capacity(self.arena, result.len(), ArrayFlags::SEQUENCE);
 
-                for result_item in result.members() {
+                for result_item in result {
                     if !result_item.is_array() || result_item.has_flags(ArrayFlags::CONS) {
                         result_sequence.push(result_item);
                     } else {
