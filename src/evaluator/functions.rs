@@ -155,30 +155,30 @@ pub fn fn_boolean<'a>(
     let arg = args.first().copied().unwrap_or_else(Value::undefined);
     Ok(match arg {
         Value::Undefined => Value::undefined(),
-        Value::Null => Value::bool(context.arena, false),
-        Value::Bool(b) => Value::bool(context.arena, *b),
+        Value::Null => Value::bool(false),
+        Value::Bool(b) => Value::bool(*b),
         Value::Number(n) => {
             arg.is_valid_number()?;
-            Value::bool(context.arena, *n != 0.0)
+            Value::bool(*n != 0.0)
         }
-        Value::String(ref str) => Value::bool(context.arena, !str.is_empty()),
-        Value::Object(ref obj) => Value::bool(context.arena, !obj.is_empty()),
+        Value::String(ref str) => Value::bool(!str.is_empty()),
+        Value::Object(ref obj) => Value::bool(!obj.is_empty()),
         Value::Array { .. } => match arg.len() {
-            0 => Value::bool(context.arena, false),
+            0 => Value::bool(false),
             1 => fn_boolean(context.clone(), &[arg.get_member(0)])?,
             _ => {
                 for item in arg.members() {
                     if fn_boolean(context.clone(), &[item])?.as_bool() {
-                        return Ok(Value::bool(context.arena, true));
+                        return Ok(Value::bool(true));
                     }
                 }
-                Value::bool(context.arena, false)
+                Value::bool(false)
             }
         },
         Value::Lambda { .. } | Value::NativeFn { .. } | Value::Transformer { .. } => {
-            Value::bool(context.arena, false)
+            Value::bool(false)
         }
-        Value::Range(ref range) => Value::bool(context.arena, !range.is_empty()),
+        Value::Range(ref range) => Value::bool(!range.is_empty()),
     })
 }
 
@@ -420,7 +420,7 @@ pub fn fn_string<'a>(
 }
 
 pub fn fn_not<'a>(
-    context: FunctionContext<'a, '_>,
+    _context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     let arg = args.first().copied().unwrap_or_else(Value::undefined);
@@ -428,7 +428,7 @@ pub fn fn_not<'a>(
     Ok(if arg.is_undefined() {
         Value::undefined()
     } else {
-        Value::bool(context.arena, !arg.is_truthy())
+        Value::bool(!arg.is_truthy())
     })
 }
 
@@ -562,10 +562,7 @@ pub fn fn_contains<'a>(
     let str_value = str_value.as_str();
     let token_value = token_value.as_str();
 
-    Ok(Value::bool(
-        context.arena,
-        str_value.contains(&token_value.to_string()),
-    ))
+    Ok(Value::bool(str_value.contains(&token_value.to_string())))
 }
 
 pub fn fn_replace<'a>(
@@ -871,8 +868,8 @@ pub fn fn_exists<'a>(
     let arg = args.first().copied().unwrap_or_else(Value::undefined);
 
     match arg {
-        Value::Undefined => Ok(Value::bool(context.arena, false)),
-        _ => Ok(Value::bool(context.arena, true)),
+        Value::Undefined => Ok(Value::bool(false)),
+        _ => Ok(Value::bool(true)),
     }
 }
 

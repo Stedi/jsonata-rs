@@ -98,7 +98,7 @@ impl<'a> Evaluator<'a> {
 
         let mut result = match node.kind {
             AstKind::Null => Value::null(self.arena),
-            AstKind::Bool(b) => Value::bool(self.arena, b),
+            AstKind::Bool(b) => Value::bool(b),
             AstKind::String(ref s) => Value::string(self.arena, s),
             AstKind::Number(n) => Value::number(self.arena, n),
             AstKind::Block(ref exprs) => self.evaluate_block(exprs, input, frame)?,
@@ -450,29 +450,23 @@ impl<'a> Evaluator<'a> {
                 if lhs.is_number() && rhs.is_number() {
                     let lhs = lhs.as_f64();
                     let rhs = rhs.as_f64();
-                    return Ok(Value::bool(
-                        self.arena,
-                        match op {
-                            BinaryOp::LessThan => lhs < rhs,
-                            BinaryOp::LessThanEqual => lhs <= rhs,
-                            BinaryOp::GreaterThan => lhs > rhs,
-                            BinaryOp::GreaterThanEqual => lhs >= rhs,
-                            _ => unreachable!(),
-                        },
-                    ));
+                    return Ok(Value::bool(match op {
+                        BinaryOp::LessThan => lhs < rhs,
+                        BinaryOp::LessThanEqual => lhs <= rhs,
+                        BinaryOp::GreaterThan => lhs > rhs,
+                        BinaryOp::GreaterThanEqual => lhs >= rhs,
+                        _ => unreachable!(),
+                    }));
                 }
 
                 if let (Value::String(ref lhs), Value::String(ref rhs)) = (lhs, rhs) {
-                    return Ok(Value::bool(
-                        self.arena,
-                        match op {
-                            BinaryOp::LessThan => lhs < rhs,
-                            BinaryOp::LessThanEqual => lhs <= rhs,
-                            BinaryOp::GreaterThan => lhs > rhs,
-                            BinaryOp::GreaterThanEqual => lhs >= rhs,
-                            _ => unreachable!(),
-                        },
-                    ));
+                    return Ok(Value::bool(match op {
+                        BinaryOp::LessThan => lhs < rhs,
+                        BinaryOp::LessThanEqual => lhs <= rhs,
+                        BinaryOp::GreaterThan => lhs > rhs,
+                        BinaryOp::GreaterThanEqual => lhs >= rhs,
+                        _ => unreachable!(),
+                    }));
                 }
 
                 Err(Error::T2009BinaryOpMismatch(
@@ -487,17 +481,14 @@ impl<'a> Evaluator<'a> {
                 let rhs = self.evaluate(rhs_ast, input, frame)?;
 
                 if lhs.is_undefined() || rhs.is_undefined() {
-                    return Ok(Value::bool(self.arena, false));
+                    return Ok(Value::bool(false));
                 }
 
-                Ok(Value::bool(
-                    self.arena,
-                    match op {
-                        BinaryOp::Equal => lhs == rhs,
-                        BinaryOp::NotEqual => lhs != rhs,
-                        _ => unreachable!(),
-                    },
-                ))
+                Ok(Value::bool(match op {
+                    BinaryOp::Equal => lhs == rhs,
+                    BinaryOp::NotEqual => lhs != rhs,
+                    _ => unreachable!(),
+                }))
             }
 
             BinaryOp::Range => {
@@ -555,12 +546,10 @@ impl<'a> Evaluator<'a> {
             }
 
             BinaryOp::And => Ok(Value::bool(
-                self.arena,
                 lhs.is_truthy() && self.evaluate(rhs_ast, input, frame)?.is_truthy(),
             )),
 
             BinaryOp::Or => Ok(Value::bool(
-                self.arena,
                 lhs.is_truthy() || self.evaluate(rhs_ast, input, frame)?.is_truthy(),
             )),
 
@@ -612,18 +601,18 @@ impl<'a> Evaluator<'a> {
                 let rhs = self.evaluate(rhs_ast, input, frame)?;
 
                 if lhs.is_undefined() || rhs.is_undefined() {
-                    return Ok(Value::bool(self.arena, false));
+                    return Ok(Value::bool(false));
                 }
 
                 let rhs = Value::wrap_in_array_if_needed(self.arena, rhs, ArrayFlags::empty());
 
                 for item in rhs.members() {
                     if item == lhs {
-                        return Ok(Value::bool(self.arena, true));
+                        return Ok(Value::bool(true));
                     }
                 }
 
-                Ok(Value::bool(self.arena, false))
+                Ok(Value::bool(false))
             }
 
             _ => unimplemented!("TODO: binary op not supported yet: {:#?}", *op),

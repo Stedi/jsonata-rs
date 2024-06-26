@@ -34,6 +34,8 @@ bitflags! {
 }
 
 pub const UNDEFINED: Value = Value::Undefined;
+pub const TRUE: Value = Value::Bool(true);
+pub const FALSE: Value = Value::Bool(false);
 
 /// The core value type for input, output and evaluation. There's a lot of lifetimes here to avoid
 /// cloning any part of the input that should be kept in the output, avoiding heap allocations for
@@ -79,8 +81,12 @@ impl<'a> Value<'a> {
         arena.alloc(Value::Null)
     }
 
-    pub fn bool(arena: &Bump, value: bool) -> &mut Value {
-        arena.alloc(Value::Bool(value))
+    pub fn bool(value: bool) -> &'a Value<'a> {
+        if value {
+            unsafe { std::mem::transmute::<&Value<'static>, &'a Value<'a>>(&TRUE) }
+        } else {
+            unsafe { std::mem::transmute::<&Value<'static>, &'a Value<'a>>(&FALSE) }
+        }
     }
 
     pub fn number(arena: &Bump, value: impl Into<f64>) -> &mut Value {
@@ -496,11 +502,8 @@ impl<'a> Value<'a> {
             Self::Undefined => arena.alloc(Value::Undefined),
             Self::Null => Value::null(arena),
             Self::Number(n) => Value::number(arena, *n),
-            Self::Bool(b) => Value::bool(arena, *b),
-            // TODO: clean up
-            Self::String(s) => {
-                arena.alloc(Value::String(BumpString::from_str_in(s.as_str(), arena)))
-            }
+            Self::Bool(b) => arena.alloc(Value::Bool(*b)),
+            Self::String(s) => arena.alloc(Value::String(s.clone())),
             Self::Array(a, f) => Value::array_from(arena, a.clone(), *f),
             Self::Object(o) => Value::object_from(o, arena),
             Self::Lambda { ast, input, frame } => Value::lambda(arena, ast, input, frame.clone()),

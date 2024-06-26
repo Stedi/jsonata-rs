@@ -54,7 +54,7 @@ impl<'a> JsonAta<'a> {
     fn json_value_to_value(&self, json_value: &serde_json::Value) -> &'a mut Value<'a> {
         return match json_value {
             serde_json::Value::Null => Value::null(self.arena),
-            serde_json::Value::Bool(b) => Value::bool(self.arena, *b),
+            serde_json::Value::Bool(b) => self.arena.alloc(Value::Bool(*b)),
             serde_json::Value::Number(n) => Value::number(self.arena, n.as_f64().unwrap()),
             serde_json::Value::String(s) => Value::string(self.arena, s),
 
@@ -219,9 +219,9 @@ mod tests {
     fn register_function_filter_even() {
         let arena = Bump::new();
         let jsonata = JsonAta::new("$filter([1,4,9,16], $even)", &arena).unwrap();
-        jsonata.register_function("even", 1, |ctx, args| {
+        jsonata.register_function("even", 1, |_ctx, args| {
             let num = &args[0];
-            return Ok(Value::bool(ctx.arena, (num.as_f64()) % 2.0 == 0.0));
+            return Ok(Value::bool((num.as_f64()) % 2.0 == 0.0));
         });
 
         let result = jsonata.evaluate(Some(r#"anything"#), None);
