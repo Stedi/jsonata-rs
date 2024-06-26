@@ -28,3 +28,7 @@ Adding support for base64 encoding decoding, thanks to nated0g for the contribut
 ## [0.1.4] - 2024-06-24
 
 - Enhancements to improve performance
+
+## [0.1.5] - 2024-06-26
+
+- Enhancements to improve performance
