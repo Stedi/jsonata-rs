@@ -1,0 +1,6 @@
+{
+  "expr": "$distinct([\"foo\", \"bar\", \"foo\", \"baz\", \"bar\"])",
+  "data": null,
+  "bindings": {},
+  "result": ["foo", "bar", "baz"]
+}

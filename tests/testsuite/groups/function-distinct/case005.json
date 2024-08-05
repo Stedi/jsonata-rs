@@ -1,0 +1,11 @@
+{
+  "expr": "$distinct(Account.Order.Product.SKU)",
+  "dataset": "dataset5",
+  "bindings": {},
+  "result": [
+      "0406654608",
+      "0406634348",
+      "040657863",
+      "0406654603"
+  ]
+}

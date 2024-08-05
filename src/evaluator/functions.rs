@@ -1,5 +1,6 @@
 use base64::Engine;
 use std::borrow::Borrow;
+use std::collections::HashSet;
 
 use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
@@ -994,6 +995,30 @@ pub fn fn_reverse<'a>(
 
     let result = Value::array_with_capacity(context.arena, arr.len(), ArrayFlags::empty());
     arr.members().rev().for_each(|member| result.push(member));
+    Ok(result)
+}
+
+pub fn fn_distinct<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 1);
+
+    let arr = args.first().copied().unwrap_or_else(Value::undefined);
+    if !arr.is_array() || arr.len() <= 1 {
+        return Ok(arr);
+    }
+
+    let result = Value::array_with_capacity(context.arena, arr.len(), ArrayFlags::empty());
+    let mut set = HashSet::new();
+    for member in arr.members() {
+        if set.contains(member) {
+            continue;
+        }
+        set.insert(member);
+        result.push(member);
+    }
+
     Ok(result)
 }
 

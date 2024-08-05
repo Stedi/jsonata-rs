@@ -1,4 +1,9 @@
-use std::ops::Index;
+use std::{
+    hash::{Hash, Hasher},
+    ops::Index,
+};
+
+use rand::Rng;
 
 use super::Value;
 
@@ -98,4 +103,37 @@ impl std::fmt::Display for Value<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:#?}", self)
     }
+}
+
+impl Hash for Value<'_> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Value::Undefined => 0.hash(state),
+            Value::Null => 1.hash(state),
+            Value::Number(n) => n.to_bits().hash(state),
+            Value::Bool(b) => b.hash(state),
+            Value::String(s) => s.hash(state),
+            Value::Array(a, _) => a.hash(state),
+            Value::Object(map) => {
+                let mut keys_sorted = map.keys().collect::<Vec<_>>();
+                keys_sorted.sort();
+
+                for key in keys_sorted {
+                    key.hash(state);
+                    map.get(key).hash(state);
+                }
+            }
+            Value::Range(r) => r.hash(state),
+            Value::Lambda { .. } => generate_random_hash(state),
+            Value::NativeFn { name, .. } => name.hash(state),
+            Value::Transformer { .. } => generate_random_hash(state),
+        }
+    }
+}
+
+impl Eq for Value<'_> {}
+
+fn generate_random_hash<H: Hasher>(state: &mut H) {
+    let random_number: u64 = rand::thread_rng().gen();
+    random_number.hash(state);
 }
