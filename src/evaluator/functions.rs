@@ -998,6 +998,7 @@ pub fn fn_reverse<'a>(
     Ok(result)
 }
 
+#[allow(clippy::mutable_key_type)]
 pub fn fn_distinct<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],

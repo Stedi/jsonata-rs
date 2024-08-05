@@ -1,6 +1,0 @@
-{
-  "expr": "$distinct(null)",
-  "data": null,
-  "bindings": {},
-  "result": null
-}
