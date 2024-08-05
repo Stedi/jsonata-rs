@@ -1,4 +1,7 @@
-use std::ops::Index;
+use std::{
+    hash::{Hash, Hasher},
+    ops::Index,
+};
 
 use bumpalo::Bump;
 
@@ -58,6 +61,13 @@ impl<'a> Index<usize> for Range<'a> {
 impl<'a> PartialEq<Range<'_>> for Range<'a> {
     fn eq(&self, other: &Range<'_>) -> bool {
         self.start == other.start && self.end == other.end
+    }
+}
+
+impl Hash for Range<'_> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.start.hash(state);
+        self.end.hash(state);
     }
 }
 
