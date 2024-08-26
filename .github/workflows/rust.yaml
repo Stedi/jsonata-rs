@@ -23,7 +23,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           target: wasm32-wasi
-      - uses: taiki-e/install-action@ed2cb27ca5a373d3d3062027e937d5bb76026931
+      - uses: taiki-e/install-action@f172798ba087526822a4f43dd08714d08a45aa37
         with:
           tool: wasmtime,cargo-wasi
       - env:
