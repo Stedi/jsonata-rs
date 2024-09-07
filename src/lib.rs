@@ -147,6 +147,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("min", 1, fn_min);
         bind_native!("not", 1, fn_not);
         bind_native!("number", 1, fn_number);
+        bind_native!("random", 0, fn_random);
         bind_native!("power", 2, fn_power);
         bind_native!("replace", 4, fn_replace);
         bind_native!("reverse", 1, fn_reverse);
@@ -279,5 +280,16 @@ mod tests {
         let result = jsonata.evaluate(None, Some(&bindings));
 
         assert_eq!(result.unwrap().as_f64(), 3.0);
+    }
+
+    #[test]
+    fn evaluate_with_random() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$random()", &arena).unwrap();
+
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        assert!(result.as_f64() >= 0.0);
+        assert!(result.as_f64() < 1.0);
     }
 }

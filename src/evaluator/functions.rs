@@ -1,4 +1,5 @@
 use base64::Engine;
+use rand::Rng;
 use std::borrow::Borrow;
 use std::collections::HashSet;
 
@@ -857,6 +858,16 @@ pub fn fn_number<'a>(
         }
         _ => bad_arg!(context, 1),
     }
+}
+
+pub fn fn_random<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 0);
+
+    let v: f32 = rand::thread_rng().gen();
+    Ok(Value::number(context.arena, v))
 }
 
 pub fn fn_exists<'a>(
