@@ -146,6 +146,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("merge", 1, fn_merge);
         bind_native!("min", 1, fn_min);
         bind_native!("not", 1, fn_not);
+        bind_native!("now", 0, fn_now);
         bind_native!("number", 1, fn_number);
         bind_native!("random", 0, fn_random);
         bind_native!("power", 2, fn_power);
@@ -171,6 +172,8 @@ impl<'a> JsonAta<'a> {
 
 #[cfg(test)]
 mod tests {
+    use chrono::{DateTime, Utc};
+
     use super::*;
 
     #[test]
@@ -291,5 +294,39 @@ mod tests {
 
         assert!(result.as_f64() >= 0.0);
         assert!(result.as_f64() < 1.0);
+    }
+
+    #[test]
+    fn evaluate_with_now() {
+        let arena = Bump::new();
+        // Create a new JSONata instance with the $now function
+        let jsonata = JsonAta::new("$now()", &arena).unwrap();
+
+        // Evaluate the expression
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        // Get the result as a string
+        let result_str = result.as_str();
+
+        // Ensure the result is in valid ISO 8601 format
+        // Example: "2024-09-08T15:12:59.152Z"
+        let parsed_result = DateTime::parse_from_rfc3339(&result_str);
+
+        // Assert that the timestamp is valid and correctly parsed
+        assert!(
+            parsed_result.is_ok(),
+            "The returned value is not a valid ISO 8601 timestamp"
+        );
+
+        // Optionally, check that the timestamp is relatively close to the current time
+        let now = Utc::now();
+        let parsed_time = parsed_result.unwrap();
+        let duration = now.signed_duration_since(parsed_time);
+
+        // The timestamp should not be too far in the past (say within a few seconds of `now`)
+        assert!(
+            duration.num_seconds() < 3,
+            "The returned timestamp is too far from the current time"
+        );
     }
 }

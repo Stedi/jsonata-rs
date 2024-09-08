@@ -1,4 +1,5 @@
 use base64::Engine;
+use chrono::{DateTime, Utc};
 use rand::Rng;
 use std::borrow::Borrow;
 use std::collections::HashSet;
@@ -868,6 +869,21 @@ pub fn fn_random<'a>(
 
     let v: f32 = rand::thread_rng().gen();
     Ok(Value::number(context.arena, v))
+}
+
+pub fn fn_now<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 0);
+    // Get the current UTC time
+    let now: DateTime<Utc> = Utc::now();
+
+    // Format the time as an ISO 8601 string
+    let formatted_now = now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+    // Return the formatted timestamp as a string value
+    Ok(Value::string(context.arena, &formatted_now))
 }
 
 pub fn fn_exists<'a>(
