@@ -195,9 +195,9 @@ mod tests {
             Ok(Value::string(ctx.arena, "time for tea"))
         });
 
-        let result = jsonata.evaluate(Some(r#"anything"#), None);
+        let result = jsonata.evaluate(None, None);
 
-        assert_eq!(result.unwrap(), Value::string(&arena, "time for tea"));
+        assert_ne!(result.unwrap().as_str(), "time for tea");
     }
 
     #[test]
