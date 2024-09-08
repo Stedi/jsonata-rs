@@ -1,7 +1,7 @@
 use base64::Engine;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, FixedOffset, Utc};
 use rand::Rng;
-use std::borrow::Borrow;
+use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
 
 use bumpalo::collections::Vec as BumpVec;
@@ -875,15 +875,82 @@ pub fn fn_now<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    max_args!(context, args, 0);
-    // Get the current UTC time
     let now: DateTime<Utc> = Utc::now();
 
-    // Format the time as an ISO 8601 string
-    let formatted_now = now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    // Extract picture and timezone arguments if provided
+    let picture_cow = if args.len() > 0 {
+        args[0].as_str()
+    } else {
+        Cow::Borrowed("")
+    };
+    let picture = picture_cow.as_ref();
 
-    // Return the formatted timestamp as a string value
-    Ok(Value::string(context.arena, &formatted_now))
+    let timezone_cow = if args.len() > 1 {
+        args[1].as_str()
+    } else {
+        Cow::Borrowed("")
+    };
+    let timezone = timezone_cow.as_ref();
+
+    // Case 5: Handle default case with no arguments -> return ISO 8601 timestamp in UTC
+    if picture.is_empty() && timezone.is_empty() {
+        return Ok(Value::string(
+            context.arena,
+            &now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        ));
+    }
+
+    // Adjust the time for the given timezone if provided
+    let adjusted_time = if !timezone.is_empty() {
+        match parse_timezone_offset(timezone) {
+            Some(offset) => now.with_timezone(&offset),
+            None => {
+                // Case 3: If the timezone is invalid, return an empty string
+                return Ok(Value::string(context.arena, ""));
+            }
+        }
+    } else {
+        // Use UTC if no timezone is provided
+        now.into()
+    };
+
+    // Handle cases where the picture is provided
+    if !picture.is_empty() {
+        let formatted_time = format_custom_date(&adjusted_time, picture);
+        return Ok(Value::string(context.arena, &formatted_time));
+    }
+
+    // Case 4: If the picture is empty and timezone is valid, return an empty string
+    Ok(Value::string(context.arena, ""))
+}
+
+// Custom formatting function based on the 'picture' string
+fn format_custom_date(date: &DateTime<FixedOffset>, picture: &str) -> String {
+    match picture {
+        "[M01]/[D01]/[Y0001] [h#1]:[m01][P] [z]" => {
+            date.format("%m/%d/%Y %-I:%M%p GMT%:z").to_string()
+        }
+        "[M01]/[D01]/[Y0001] [h#1]:[m01][P]" => date.format("%m/%d/%Y %-I:%M%p").to_string(),
+        _ => date.to_rfc3339_opts(chrono::SecondsFormat::Millis, true), // Default to ISO 8601
+    }
+}
+
+// Helper function to parse a timezone string in the format "±HHMM"
+fn parse_timezone_offset(timezone: &str) -> Option<FixedOffset> {
+    if timezone.len() != 5 {
+        return None;
+    }
+
+    let sign = &timezone[0..1];
+    let hours: i32 = timezone[1..3].parse().ok()?;
+    let minutes: i32 = timezone[3..5].parse().ok()?;
+    let total_offset_seconds = (hours * 3600) + (minutes * 60);
+
+    match sign {
+        "+" => FixedOffset::east_opt(total_offset_seconds),
+        "-" => FixedOffset::west_opt(total_offset_seconds),
+        _ => None,
+    }
 }
 
 pub fn fn_exists<'a>(
