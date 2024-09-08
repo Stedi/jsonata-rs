@@ -878,11 +878,12 @@ pub fn fn_now<'a>(
     let now: DateTime<Utc> = Utc::now();
 
     // Extract picture and timezone arguments if provided
-    let picture_cow = if args.len() > 0 {
+    let picture_cow = if !args.is_empty() {
         args[0].as_str()
     } else {
         Cow::Borrowed("")
     };
+
     let picture = picture_cow.as_ref();
 
     let timezone_cow = if args.len() > 1 {
