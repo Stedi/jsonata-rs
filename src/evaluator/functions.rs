@@ -875,7 +875,6 @@ pub fn fn_now<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    // Ensure that no more than two arguments are passed
     max_args!(context, args, 2);
 
     let now = Utc::now();
@@ -885,7 +884,7 @@ pub fn fn_now<'a>(
         [picture, timezone] => (picture.as_str(), timezone.as_str()),
         [picture] => (picture.as_str(), Cow::Borrowed("")),
         [] => (Cow::Borrowed(""), Cow::Borrowed("")),
-        &[..] => return Ok(Value::string(context.arena, "")), // Handle case with more than two arguments
+        &[..] => return Ok(Value::string(context.arena, "")),
     };
 
     // Handle the default case (no picture, no timezone) -> return ISO 8601 timestamp in UTC
