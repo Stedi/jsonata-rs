@@ -361,16 +361,22 @@ mod tests {
     fn test_now_with_invalid_timezone() {
         let arena = Bump::new();
         let jsonata = JsonAta::new("$now('', 'invalid')", &arena).unwrap();
-        let result = jsonata.evaluate(None, None).unwrap();
-        let result_str = result.as_str();
+        let result = jsonata.evaluate(None, None);
 
-        println!("test_now_with_invalid_timezone {}", result_str);
-
-        // Should return empty string for invalid timezone
+        // Ensure that the evaluation results in an error
         assert!(
-            result_str.is_empty(),
-            "Expected empty string for invalid timezone"
+            result.is_err(),
+            "Expected a runtime error for invalid timezone"
         );
+
+        // Get the error and check if it's the correct one
+        if let Err(err) = result {
+            // We expect a T0410ArgumentNotValid error
+            assert_eq!(
+                err.to_string(),
+                "T0410 @ 2: Argument 1 of function now does not match function signature"
+            );
+        }
     }
 
     #[test]
@@ -458,5 +464,59 @@ mod tests {
             expected_format.is_match(&result_str),
             "Expected 12-hour format with timezone"
         );
+    }
+
+    #[test]
+    fn test_now_with_invalid_timezone_should_fail() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$now('', 'invalid')", &arena).unwrap();
+        let result = jsonata.evaluate(None, None);
+
+        assert!(
+            result.is_err(),
+            "Expected a runtime error for invalid timezone"
+        );
+
+        let error = result.unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "T0410 @ 2: Argument 1 of function now does not match function signature"
+        );
+    }
+
+    #[test]
+    fn test_now_invalid_timezone_with_format() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$now('[h]:[m]:[s]', 'xx')", &arena).unwrap();
+        let result = jsonata.evaluate(None, None);
+
+        assert!(
+            result.is_err(),
+            "Expected a runtime error for invalid timezone"
+        );
+        if let Err(err) = result {
+            assert_eq!(
+                err.to_string(),
+                "T0410 @ 2: Argument 1 of function now does not match function signature"
+            );
+        }
+    }
+
+    #[test]
+    fn test_now_invalid_format_with_timezone() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$now('[h01]:[m01]:[s01]', 'xx')", &arena).unwrap();
+        let result = jsonata.evaluate(None, None);
+
+        assert!(
+            result.is_err(),
+            "Expected a runtime error for invalid format"
+        );
+        if let Err(err) = result {
+            assert_eq!(
+                err.to_string(),
+                "T0410 @ 2: Argument 1 of function now does not match function signature"
+            );
+        }
     }
 }

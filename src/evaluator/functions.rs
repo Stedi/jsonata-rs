@@ -900,7 +900,8 @@ pub fn fn_now<'a>(
     let adjusted_time = if !timezone.is_empty() {
         parse_timezone_offset(&timezone)
             .map(|offset| now.with_timezone(&offset))
-            .unwrap_or(now.into()) // Fallback to UTC if invalid timezone
+            .ok_or_else(|| Error::T0410ArgumentNotValid(2, 1, context.name.to_string()))?
+        // Ensure this references the correct variant
     } else {
         now.into() // Use UTC if no timezone provided
     };
