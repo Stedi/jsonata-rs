@@ -917,11 +917,37 @@ pub fn fn_now<'a>(
 // Custom formatting function based on the 'picture' string
 fn format_custom_date(date: &DateTime<FixedOffset>, picture: &str) -> String {
     match picture {
+        // 24-hour time with timezone (e.g., 05:22 GMT+14:40)
+        "[H01]:[m01] [z]" => date.format("%H:%M GMT%:z").to_string(),
+
+        // 24-hour time format with timezone
+        "[H01]:[m01]:[s01] [z]" => date.format("%H:%M:%S GMT%:z").to_string(),
+
+        // Full date with 12-hour time and timezone (e.g., 09/08/2024 8:15am GMT-05:00)
         "[M01]/[D01]/[Y0001] [h#1]:[m01][P] [z]" => {
             date.format("%m/%d/%Y %-I:%M%p GMT%:z").to_string()
         }
+
+        // Full date with 12-hour time without timezone (e.g., 09/08/2024 2:45pm)
         "[M01]/[D01]/[Y0001] [h#1]:[m01][P]" => date.format("%m/%d/%Y %-I:%M%p").to_string(),
-        _ => date.to_rfc3339_opts(chrono::SecondsFormat::Millis, true), // Default to ISO 8601
+
+        // Full date with day of the week (e.g., Monday, 09/08/2024)
+        "[W01], [M01]/[D01]/[Y0001]" => date.format("%A, %m/%d/%Y").to_string(),
+
+        // Time in 24-hour format, no timezone (e.g., 14:35)
+        "[H01]:[m01]:[s01]" => date.format("%H:%M:%S").to_string(),
+
+        // Date without time (e.g., 09/08/2024)
+        "[M01]/[D01]/[Y0001]" => date.format("%m/%d/%Y").to_string(),
+
+        // RFC 2822 format (e.g., Mon, 08 Sep 2024 13:15:00 +0000)
+        "RFC2822" => date.to_rfc2822(),
+
+        // Custom format with full weekday and month names
+        "[W01], [MN1] [D01], [Y0001]" => date.format("%A, %B %d, %Y").to_string(),
+
+        // Default to ISO 8601 if no recognized picture is provided
+        _ => date.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
     }
 }
 

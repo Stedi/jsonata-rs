@@ -304,13 +304,9 @@ mod tests {
         let result = jsonata.evaluate(None, None).unwrap();
         let result_str = result.as_str();
 
-        /*
-           1.	$now()
-                Result: "2024-09-08T13:15:00Z"
-        */
         println!("test_now_default_utc {}", result_str);
 
-        // Ensure the result is in valid ISO 8601 format (Case 1)
+        // Check for valid ISO 8601 format and ensure it's in UTC
         let parsed_result = DateTime::parse_from_rfc3339(&result_str)
             .expect("Should parse valid ISO 8601 timestamp");
 
@@ -332,17 +328,13 @@ mod tests {
         let result = jsonata.evaluate(None, None).unwrap();
         let result_str = result.as_str();
 
-        /*
-            2.	$now('[M01]/[D01]/[Y0001] [h#1]:[m01][P] [z]', '-0500')
-                Result: "09/08/2024 8:15am GMT-05:00"
-        */
-
         println!("test_now_with_valid_timezone_and_format {}", result_str);
-        // Ensure the result is formatted correctly (Case 2)
-        let expected_format =
-            Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(AM|PM) GMT-05:00$").unwrap();
+
+        // Check for custom formatted time with timezone
         assert!(
-            expected_format.is_match(&result_str),
+            Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(AM|PM) GMT-05:00$")
+                .unwrap()
+                .is_match(&result_str),
             "Expected custom formatted time with timezone"
         );
     }
@@ -354,15 +346,13 @@ mod tests {
         let result = jsonata.evaluate(None, None).unwrap();
         let result_str = result.as_str();
 
-        /*
-            3.	$now('[M01]/[D01]/[Y0001] [h#1]:[m01][P]')
-                Result: "09/08/2024 1:16pm"
-        */
         println!("test_now_with_valid_format_but_no_timezone {}", result_str);
-        // Ensure the result is formatted correctly without timezone (Case 3)
-        let expected_format = Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(AM|PM)$").unwrap();
+
+        // Check for custom formatted time without timezone
         assert!(
-            expected_format.is_match(&result_str),
+            Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(AM|PM)$")
+                .unwrap()
+                .is_match(&result_str),
             "Expected custom formatted time without timezone"
         );
     }
@@ -374,12 +364,9 @@ mod tests {
         let result = jsonata.evaluate(None, None).unwrap();
         let result_str = result.as_str();
 
-        /*
-           4.	$now('', 'invalid')
-               Result: ""
-        */
         println!("test_now_with_invalid_timezone {}", result_str);
-        // Should return empty string for invalid timezone (Case 4)
+
+        // Should return empty string for invalid timezone
         assert!(
             result_str.is_empty(),
             "Expected empty string for invalid timezone"
@@ -393,15 +380,52 @@ mod tests {
         let result = jsonata.evaluate(None, None).unwrap();
         let result_str = result.as_str();
 
-        /*
-           5.	$now('', '-0500')
-               Result: ""
-        */
         println!("test_now_with_valid_timezone_but_no_format {}", result_str);
-        // Should return empty string for valid timezone but empty format (Case 5)
+
+        // Should return empty string for valid timezone but empty format
         assert!(
             result_str.is_empty(),
             "Expected empty string for valid timezone but no format"
+        );
+    }
+
+    #[test]
+    fn test_now_with_too_many_arguments() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$now('', '-0500', 'extra')", &arena).unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+        let result_str = result.as_str();
+
+        println!("test_now_with_too_many_arguments {}", result_str);
+
+        // Should return an empty string for too many arguments
+        assert!(
+            result_str.is_empty(),
+            "Expected empty string for too many arguments"
+        );
+    }
+
+    #[test]
+    fn test_now_with_edge_case_timezones() {
+        let arena = Bump::new();
+
+        // Extreme positive timezone
+        let jsonata = JsonAta::new("$now('[H01]:[m01] [z]', '+1440')", &arena).unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+        let result_str = result.as_str();
+        println!("test_now_with_extreme_positive_timezone {:?}", result_str);
+        assert!(result_str.contains("GMT+14:40"), "Expected GMT+14:40");
+
+        // Edge case: minimal valid timezone
+        let jsonata_minimal = JsonAta::new("$now('[H01]:[m01] [z]', '-0000')", &arena).unwrap();
+        let result_minimal = jsonata_minimal.evaluate(None, None).unwrap();
+        let result_str_minimal = result_minimal.as_str();
+        println!("test_now_with_minimal_timezone {:?}", result_str_minimal);
+
+        // Corrected the assertion to check for "GMT+00:00"
+        assert!(
+            result_str_minimal.contains("GMT+00:00"),
+            "Expected GMT+00:00"
         );
     }
 }
