@@ -392,17 +392,25 @@ mod tests {
     #[test]
     fn test_now_with_too_many_arguments() {
         let arena = Bump::new();
+
+        // Call $now() with more than two arguments (this should cause an error due to max_args! constraint)
         let jsonata = JsonAta::new("$now('', '-0500', 'extra')", &arena).unwrap();
-        let result = jsonata.evaluate(None, None).unwrap();
-        let result_str = result.as_str();
+        let result = jsonata.evaluate(None, None);
 
-        println!("test_now_with_too_many_arguments {}", result_str);
-
-        // Should return an empty string for too many arguments
+        // Ensure that an error is returned for too many arguments
         assert!(
-            result_str.is_empty(),
-            "Expected empty string for too many arguments"
+            result.is_err(),
+            "Expected an error due to too many arguments, but got a result"
         );
+
+        if let Err(e) = result {
+            // You can also add an assertion to ensure the correct error type is returned
+            assert!(
+                matches!(e, Error::T0410ArgumentNotValid { .. }),
+                "Expected TooManyArguments error, but got: {:?}",
+                e
+            );
+        }
     }
 
     #[test]
@@ -426,6 +434,29 @@ mod tests {
         assert!(
             result_str_minimal.contains("GMT+00:00"),
             "Expected GMT+00:00"
+        );
+    }
+
+    #[test]
+    fn test_custom_format_with_components() {
+        let arena = Bump::new();
+
+        // 12-hour format with AM/PM and timezone
+        let jsonata = JsonAta::new(
+            "$now('[M01]/[D01]/[Y0001] [h#1]:[m01][P] [z]', '-0500')",
+            &arena,
+        )
+        .unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+        let result_str = result.as_str();
+
+        println!("Formatted date: {}", result_str);
+
+        let expected_format =
+            Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(AM|PM) GMT-05:00$").unwrap();
+        assert!(
+            expected_format.is_match(&result_str),
+            "Expected 12-hour format with timezone"
         );
     }
 }

@@ -875,6 +875,9 @@ pub fn fn_now<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
+    // Ensure that no more than two arguments are passed
+    max_args!(context, args, 2);
+
     let now = Utc::now();
 
     // Use pattern matching to extract picture and timezone
@@ -914,41 +917,30 @@ pub fn fn_now<'a>(
     Ok(Value::string(context.arena, ""))
 }
 
-// Custom formatting function based on the 'picture' string
+// Custom formatting function to handle a dynamic set of 'picture' strings
 fn format_custom_date(date: &DateTime<FixedOffset>, picture: &str) -> String {
-    match picture {
-        // 24-hour time with timezone (e.g., 05:22 GMT+14:40)
-        "[H01]:[m01] [z]" => date.format("%H:%M GMT%:z").to_string(),
+    let mut formatted_string = String::new();
+    let components = picture.split(&['[', ']'][..]); // Use array of char for splitting
 
-        // 24-hour time format with timezone
-        "[H01]:[m01]:[s01] [z]" => date.format("%H:%M:%S GMT%:z").to_string(),
-
-        // Full date with 12-hour time and timezone (e.g., 09/08/2024 8:15am GMT-05:00)
-        "[M01]/[D01]/[Y0001] [h#1]:[m01][P] [z]" => {
-            date.format("%m/%d/%Y %-I:%M%p GMT%:z").to_string()
+    for component in components {
+        // Use for loop instead of while let
+        match component {
+            "H01" => formatted_string.push_str(&date.format("%H").to_string()), // 24-hour format
+            "m01" => formatted_string.push_str(&date.format("%M").to_string()), // Minutes
+            "s01" => formatted_string.push_str(&date.format("%S").to_string()), // Seconds
+            "h#1" => formatted_string.push_str(&date.format("%-I").to_string()), // 12-hour format
+            "P" => formatted_string.push_str(&date.format("%p").to_string()),   // AM/PM
+            "z" => formatted_string.push_str(&date.format("GMT%:z").to_string()), // Timezone
+            "M01" => formatted_string.push_str(&date.format("%m").to_string()), // Month
+            "D01" => formatted_string.push_str(&date.format("%d").to_string()), // Day
+            "Y0001" => formatted_string.push_str(&date.format("%Y").to_string()), // Year
+            "W01" => formatted_string.push_str(&date.format("%A").to_string()), // Day of the week
+            "MN1" => formatted_string.push_str(&date.format("%B").to_string()), // Full month name
+            _ => formatted_string.push_str(component), // Handle any literal characters or separators
         }
-
-        // Full date with 12-hour time without timezone (e.g., 09/08/2024 2:45pm)
-        "[M01]/[D01]/[Y0001] [h#1]:[m01][P]" => date.format("%m/%d/%Y %-I:%M%p").to_string(),
-
-        // Full date with day of the week (e.g., Monday, 09/08/2024)
-        "[W01], [M01]/[D01]/[Y0001]" => date.format("%A, %m/%d/%Y").to_string(),
-
-        // Time in 24-hour format, no timezone (e.g., 14:35)
-        "[H01]:[m01]:[s01]" => date.format("%H:%M:%S").to_string(),
-
-        // Date without time (e.g., 09/08/2024)
-        "[M01]/[D01]/[Y0001]" => date.format("%m/%d/%Y").to_string(),
-
-        // RFC 2822 format (e.g., Mon, 08 Sep 2024 13:15:00 +0000)
-        "RFC2822" => date.to_rfc2822(),
-
-        // Custom format with full weekday and month names
-        "[W01], [MN1] [D01], [Y0001]" => date.format("%A, %B %d, %Y").to_string(),
-
-        // Default to ISO 8601 if no recognized picture is provided
-        _ => date.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
     }
+
+    formatted_string
 }
 
 // Helper function to parse a timezone string in the format "±HHMM"
