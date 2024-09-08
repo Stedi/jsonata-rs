@@ -875,25 +875,17 @@ pub fn fn_now<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let now: DateTime<Utc> = Utc::now();
+    let now = Utc::now();
 
-    // Extract picture and timezone arguments if provided
-    let picture_cow = if !args.is_empty() {
-        args[0].as_str()
-    } else {
-        Cow::Borrowed("")
+    // Use pattern matching to extract picture and timezone
+    let (picture, timezone) = match args {
+        [picture, timezone] => (picture.as_str(), timezone.as_str()),
+        [picture] => (picture.as_str(), Cow::Borrowed("")),
+        [] => (Cow::Borrowed(""), Cow::Borrowed("")),
+        &[..] => return Ok(Value::string(context.arena, "")), // Handle case with more than two arguments
     };
 
-    let picture = picture_cow.as_ref();
-
-    let timezone_cow = if args.len() > 1 {
-        args[1].as_str()
-    } else {
-        Cow::Borrowed("")
-    };
-    let timezone = timezone_cow.as_ref();
-
-    // Case 5: Handle default case with no arguments -> return ISO 8601 timestamp in UTC
+    // Handle the default case (no picture, no timezone) -> return ISO 8601 timestamp in UTC
     if picture.is_empty() && timezone.is_empty() {
         return Ok(Value::string(
             context.arena,
@@ -903,25 +895,22 @@ pub fn fn_now<'a>(
 
     // Adjust the time for the given timezone if provided
     let adjusted_time = if !timezone.is_empty() {
-        match parse_timezone_offset(timezone) {
-            Some(offset) => now.with_timezone(&offset),
-            None => {
-                // Case 3: If the timezone is invalid, return an empty string
-                return Ok(Value::string(context.arena, ""));
-            }
-        }
+        parse_timezone_offset(&timezone)
+            .map(|offset| now.with_timezone(&offset))
+            .unwrap_or(now.into()) // Fallback to UTC if invalid timezone
     } else {
-        // Use UTC if no timezone is provided
-        now.into()
+        now.into() // Use UTC if no timezone provided
     };
 
-    // Handle cases where the picture is provided
+    // If a valid picture is provided, format the time accordingly
     if !picture.is_empty() {
-        let formatted_time = format_custom_date(&adjusted_time, picture);
-        return Ok(Value::string(context.arena, &formatted_time));
+        return Ok(Value::string(
+            context.arena,
+            &format_custom_date(&adjusted_time, &picture),
+        ));
     }
 
-    // Case 4: If the picture is empty and timezone is valid, return an empty string
+    // Return an empty string if the picture is empty but a valid timezone is provided
     Ok(Value::string(context.arena, ""))
 }
 
@@ -942,12 +931,13 @@ fn parse_timezone_offset(timezone: &str) -> Option<FixedOffset> {
         return None;
     }
 
-    let sign = &timezone[0..1];
-    let hours: i32 = timezone[1..3].parse().ok()?;
-    let minutes: i32 = timezone[3..5].parse().ok()?;
+    let (hours, minutes) = (
+        timezone[1..3].parse::<i32>().ok()?,
+        timezone[3..5].parse::<i32>().ok()?,
+    );
     let total_offset_seconds = (hours * 3600) + (minutes * 60);
 
-    match sign {
+    match &timezone[0..1] {
         "+" => FixedOffset::east_opt(total_offset_seconds),
         "-" => FixedOffset::west_opt(total_offset_seconds),
         _ => None,
