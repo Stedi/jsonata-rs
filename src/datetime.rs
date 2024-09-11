@@ -62,6 +62,7 @@ pub fn format_custom_date(date: &DateTime<FixedOffset>, picture: &str) -> Result
 
 fn handle_pattern(pattern: &str, date: &DateTime<FixedOffset>) -> Result<String, Error> {
     match pattern {
+        "X0001" => Ok(date.iso_week().year().to_string()),
         "D#1,2" => Ok(format!("{:02}", date.day())),
         "M1,2" => Ok(format!("{:02}", date.month())),
         "Y,2" => Ok(date.format("%y").to_string()),
@@ -179,6 +180,13 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
             let datetime = NaiveDateTime::new(parsed_date, time);
 
             Some(Utc.from_utc_datetime(&datetime).timestamp_millis())
+        }
+
+        "[Y]-[M]-[D]" => {
+            if let Some(millis) = parse_ymd_date(timestamp_str, picture) {
+                return Some(millis);
+            }
+            None
         }
 
         // Custom date format handling with time and AM/PM
@@ -1148,6 +1156,31 @@ fn parse_year_only(date_str: &str) -> Option<i64> {
         // Create a NaiveDate for January 1st of the given year
         if let Some(naive_date) = NaiveDate::from_ymd_opt(year, 1, 1) {
             // Set the time to 00:00:00
+            if let Some(naive_datetime) = naive_date.and_hms_opt(0, 0, 0) {
+                // Convert the NaiveDateTime to a UTC timestamp in milliseconds
+                return Some(Utc.from_utc_datetime(&naive_datetime).timestamp_millis());
+            }
+        }
+    }
+    None
+}
+
+fn parse_ymd_date(timestamp_str: &str, format: &str) -> Option<i64> {
+    if format == "[Y]-[M]-[D]" {
+        // Split the input timestamp by the '-' separator
+        let parts: Vec<&str> = timestamp_str.split('-').collect();
+        if parts.len() != 3 {
+            return None; // Ensure the date format has exactly 3 parts (year, month, day)
+        }
+
+        // Parse the year, month, and day
+        let year: i32 = parts[0].parse().ok()?;
+        let month: u32 = parts[1].parse().ok()?;
+        let day: u32 = parts[2].parse().ok()?;
+
+        // Create a NaiveDate for the given year, month, and day
+        if let Some(naive_date) = NaiveDate::from_ymd_opt(year, month, day) {
+            // Set the time to 00:00:00 (midnight)
             if let Some(naive_datetime) = naive_date.and_hms_opt(0, 0, 0) {
                 // Convert the NaiveDateTime to a UTC timestamp in milliseconds
                 return Some(Utc.from_utc_datetime(&naive_datetime).timestamp_millis());
