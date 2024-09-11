@@ -4,7 +4,7 @@ use rand::Rng;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
 
-use crate::datetime::{format_custom_date, parse_timezone_offset};
+use crate::datetime::{format_custom_date, parse_custom_format, parse_timezone_offset};
 use crate::parser::expressions::check_balanced_brackets;
 
 use bumpalo::collections::Vec as BumpVec;
@@ -952,6 +952,39 @@ pub fn from_millis<'a>(
         context.arena,
         &adjusted_time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
     ))
+}
+
+pub fn to_millis<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    let arr = args.first().copied().unwrap_or_else(Value::undefined);
+
+    // If the input is undefined, return undefined
+    if arr.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    // Ensure at most two arguments
+    max_args!(context, args, 2);
+
+    // Extract the timestamp string
+    let timestamp_str = args[0].as_str();
+    if timestamp_str.is_empty() {
+        return Ok(Value::undefined());
+    }
+
+    // Extract the optional picture string
+    let picture = match args {
+        [_, picture] => picture.as_str(),
+        _ => Cow::Borrowed(""),
+    };
+
+    // Handle different formats using a match handler function
+    match parse_custom_format(&timestamp_str, &picture) {
+        Some(millis) => Ok(Value::number(context.arena, millis as f64)),
+        None => Ok(Value::undefined()),
+    }
 }
 
 pub fn fn_assert<'a>(

@@ -1,4 +1,4 @@
-use chrono::{DateTime, Datelike, FixedOffset};
+use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use num_format::{Locale, ToFormattedString};
 
 use crate::Error;
@@ -123,7 +123,313 @@ fn handle_pattern(pattern: &str, date: &DateTime<FixedOffset>) -> Result<String,
     }
 }
 
-// Helper functions
+pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
+    match picture {
+        // Handle ISO 8601 dates (including with timezone offsets like "+0000")
+        "" => {
+            // Handle year-only input (e.g., "2018")
+            if let Some(millis) = parse_year_only(timestamp_str) {
+                return Some(millis);
+            }
+            // Handle date-only input (e.g., "2017-10-30")
+            if let Some(millis) = parse_date_only(timestamp_str) {
+                return Some(millis);
+            }
+            // Handle ISO 8601 formats with timezone offsets (e.g., "2018-02-01T09:42:13.123+0000")
+            if let Some(millis) = parse_iso8601_with_timezone(timestamp_str) {
+                return Some(millis);
+            }
+            // Handle other standard ISO 8601 formats (e.g., "1970-01-01T00:00:00.001Z")
+            if let Some(millis) = parse_iso8601_date(timestamp_str) {
+                return Some(millis);
+            }
+            None
+        }
+
+        // Handle the simple year format "[Y1]"
+        "[Y1]" => {
+            if let Ok(year) = timestamp_str.parse::<i32>() {
+                let parsed_year = NaiveDate::from_ymd_opt(year, 1, 1)?;
+                let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+                let datetime = NaiveDateTime::new(parsed_year, time);
+                return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
+            }
+            None
+        }
+
+        // Handle Roman numeral year format "[YI]" (e.g., 'MCMLXXXIV')
+        "[YI]" => {
+            if let Some(year) = roman_to_int(timestamp_str) {
+                let parsed_year = NaiveDate::from_ymd_opt(year, 1, 1)?;
+                let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+                let datetime = NaiveDateTime::new(parsed_year, time);
+                return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
+            }
+            None
+        }
+
+        // Handle the format '[Yw]' (e.g., 'one thousand, nine hundred and eighty-four')
+        "[Yw]" => {
+            // Convert the word-based year (e.g., 'one thousand, nine hundred and eighty-four') to a number
+            let year = words_to_number(timestamp_str)?;
+
+            // Set the date to January 1st of the given year
+            let parsed_date = NaiveDate::from_ymd_opt(year, 1, 1)?;
+            let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+            let datetime = NaiveDateTime::new(parsed_date, time);
+
+            Some(Utc.from_utc_datetime(&datetime).timestamp_millis())
+        }
+
+        // Custom date format handling with time and AM/PM
+        "[D1]/[M1]/[Y0001] [h]:[m] [P]" => {
+            if let Some(parsed_datetime) = parse_custom_date(timestamp_str) {
+                // Convert NaiveDateTime to UTC timestamp in milliseconds
+                let utc_datetime = Utc.from_utc_datetime(&parsed_datetime);
+                return Some(utc_datetime.timestamp_millis());
+            }
+            None
+        }
+
+        // Handle the format '[Y0001]-[d001]' (e.g., '2018-094')
+        "[Y0001]-[d001]" => {
+            if let Some(parsed_datetime) = parse_ordinal_date(timestamp_str) {
+                // Convert NaiveDateTime to UTC timestamp in milliseconds
+                let utc_datetime = Utc.from_utc_datetime(&parsed_datetime);
+                return Some(utc_datetime.timestamp_millis());
+            }
+            None
+        }
+
+        // Handle the format '[FNn], [D1o] [MNn] [Y]' (e.g., 'Wednesday, 14th November 2018')
+        "[FNn], [D1o] [MNn] [Y]" => {
+            if let Some(parsed_datetime) = parse_custom_date_with_weekday(timestamp_str) {
+                // Convert NaiveDateTime to UTC timestamp in milliseconds
+                let utc_datetime = Utc.from_utc_datetime(&parsed_datetime);
+                return Some(utc_datetime.timestamp_millis());
+            }
+            None
+        }
+
+        // Handle the format '[Y]--[d]' (e.g., '2018--180')
+        "[Y]--[d]" => {
+            if let Some(parsed_datetime) = parse_ordinal_date_with_dashes(timestamp_str) {
+                // Convert NaiveDateTime to UTC timestamp in milliseconds
+                let utc_datetime = Utc.from_utc_datetime(&parsed_datetime);
+                return Some(utc_datetime.timestamp_millis());
+            }
+            None
+        }
+
+        // Handle the format '[D1] [M01] [YI]' (e.g., '27 03 MMXVIII')
+        "[D1] [M01] [YI]" => {
+            let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
+            if parts.len() == 3 {
+                let day: u32 = parts[0].parse().ok()?;
+                let month: u32 = parts[1].parse().ok()?;
+                let year = roman_to_int(parts[2])?; // Convert the Roman numeral year to an integer
+                let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
+                let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+                let datetime = NaiveDateTime::new(parsed_date, time);
+                return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
+            }
+            None
+        }
+
+        // Handle the format '[D1] [Mi] [YI]' (e.g., '27 iii MMXVIII')
+        "[D1] [Mi] [YI]" => {
+            let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
+            if parts.len() == 3 {
+                // Parse the day as an integer
+                let day: u32 = parts[0].parse().ok()?;
+
+                // Convert the Roman numeral month to an integer (e.g., 'iii' -> 3)
+                let month = roman_to_int(parts[1].to_uppercase().as_str())? as u32;
+
+                // Convert the Roman numeral year to an integer (e.g., 'MMXVIII' -> 2018)
+                let year = roman_to_int(parts[2])?;
+
+                // Construct the date from the parsed day, month, and year
+                let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
+                let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+                let datetime = NaiveDateTime::new(parsed_date, time);
+
+                // Return the timestamp in milliseconds
+                return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
+            }
+            None
+        }
+
+        // Handle the format '[Da] [MA] [Yi]' (e.g., 'w C mmxviii')
+        "[Da] [MA] [Yi]" => {
+            let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
+            if parts.len() == 3 {
+                // Ignore the weekday part ('w')
+
+                // Convert the Roman numeral month (e.g., 'C') to an integer (e.g., 3 for March)
+                let month = roman_month_to_int(parts[1])?;
+
+                // Convert the Roman numeral year (e.g., 'mmxviii') to an integer (e.g., 2018)
+                let year = roman_to_int(parts[2].to_uppercase().as_str())?;
+
+                // Convert the alphabetic day (e.g., 'w') to a number (e.g., 23)
+                let day = alphabetic_to_day(parts[0])?;
+
+                // Construct the date from the parsed day, month, and year
+                let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
+                let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+                let datetime = NaiveDateTime::new(parsed_date, time);
+
+                // Return the timestamp in milliseconds
+                return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
+            }
+            None
+        }
+
+        // Handle the format '[D1o] [M#1] [Y0001]' (e.g., '27th 3 1976')
+        "[D1o] [M#1] [Y0001]" => {
+            let cleaned_timestamp = timestamp_str
+                .replace("th", "")
+                .replace("st", "")
+                .replace("nd", "")
+                .replace("rd", "");
+            let parts: Vec<&str> = cleaned_timestamp.split_whitespace().collect();
+            if parts.len() == 3 {
+                let day: u32 = parts[0].parse().ok()?;
+                let month: u32 = parts[1].parse().ok()?;
+                let year: i32 = parts[2].parse().ok()?;
+                let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
+                let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+                let datetime = NaiveDateTime::new(parsed_date, time);
+                return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
+            }
+            None
+        }
+
+        // Handle the format '[D1o] [MNn] [Y0001]' (e.g., '27th April 2008')
+        "[D1o] [MNn] [Y0001]" => {
+            let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
+            if parts.len() == 3 {
+                // Convert the day with ordinal suffix (e.g., '27th') to a number
+                let day = remove_ordinal_suffix(parts[0])?;
+
+                // Convert the month name (e.g., 'April') to its corresponding number
+                let month = month_name_to_int(parts[1])?;
+
+                // Convert the year (e.g., '2008') to an integer
+                let year = parts[2].parse::<i32>().ok()?;
+
+                // Construct the date from the parsed day, month, and year
+                let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
+                let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+                let datetime = NaiveDateTime::new(parsed_date, time);
+
+                // Return the timestamp in milliseconds
+                return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
+            }
+            None
+        }
+
+        // Handle the format '[D1] [MNn] [Y0001]' (e.g., '21 August 2017')
+        "[D1] [MNn] [Y0001]" => {
+            let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
+            if parts.len() == 3 {
+                // Parse the day (e.g., '21')
+                let day = parts[0].parse::<u32>().ok()?;
+
+                // Convert the month name (e.g., 'August') to its corresponding number
+                let month = month_name_to_int(parts[1])?;
+
+                // Parse the year (e.g., '2017')
+                let year = parts[2].parse::<i32>().ok()?;
+
+                // Construct the date from the parsed day, month, and year
+                let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
+                let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+                let datetime = NaiveDateTime::new(parsed_date, time);
+
+                // Return the timestamp in milliseconds
+                return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
+            }
+            None
+        }
+
+        // Handle the format '[D1] [MNn,3-3] [Y0001]' (e.g., '2 Feb 2012')
+        "[D1] [MNn,3-3] [Y0001]" => {
+            let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
+            if parts.len() == 3 {
+                // Parse the day (e.g., '2')
+                let day = parts[0].parse::<u32>().ok()?;
+
+                // Convert the abbreviated month name (e.g., 'Feb') to its corresponding number
+                let month = abbreviated_month_to_int(parts[1])?;
+
+                // Parse the year (e.g., '2012')
+                let year = parts[2].parse::<i32>().ok()?;
+
+                // Construct the date from the parsed day, month, and year
+                let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
+                let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+                let datetime = NaiveDateTime::new(parsed_date, time);
+
+                // Return the timestamp in milliseconds
+                return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
+            }
+            None
+        }
+
+        // Handle the format '[D1o] [M01] [Y0001]' (e.g., '21st 12 1881')
+        "[D1o] [M01] [Y0001]" => {
+            // Clean the ordinal suffix from the day part ('st', 'nd', 'rd', 'th')
+            let cleaned_timestamp = timestamp_str
+                .replace("th", "")
+                .replace("st", "")
+                .replace("nd", "")
+                .replace("rd", "");
+            let parts: Vec<&str> = cleaned_timestamp.split_whitespace().collect();
+            if parts.len() == 3 {
+                let day: u32 = parts[0].parse().ok()?;
+                let month: u32 = parts[1].parse().ok()?;
+                let year: i32 = parts[2].parse().ok()?;
+                let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
+                let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+                let datetime = NaiveDateTime::new(parsed_date, time);
+                return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
+            }
+            None
+        }
+
+        // Handle ISO 8601-like formats with custom pattern handling
+        "[Y0001]-[M01]-[D01]" => {
+            if let Ok(parsed_date) = NaiveDate::parse_from_str(timestamp_str, "%Y-%m-%d") {
+                let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+                let datetime = NaiveDateTime::new(parsed_date, time);
+                return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
+            }
+            None
+        }
+
+        // Handle ISO 8601-like formats with custom pattern handling like '[Y1]-[M01]-[D01]'
+        "[Y1]-[M01]-[D01]" => {
+            if let Ok(parsed_date) = NaiveDate::parse_from_str(timestamp_str, "%Y-%m-%d") {
+                let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+                let datetime = NaiveDateTime::new(parsed_date, time);
+                return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
+            }
+            None
+        }
+
+        "[Y0001]-[M01]-[D01]T[H01]:[m01]:[s01].[f001]Z" => {
+            if let Ok(parsed_datetime) = DateTime::parse_from_rfc3339(timestamp_str) {
+                return Some(parsed_datetime.timestamp_millis());
+            }
+            None
+        }
+
+        // Default case: return None if the picture is not recognized
+        _ => None,
+    }
+}
 
 fn handle_year_last_two_digits(date: &DateTime<FixedOffset>) -> Result<String, Error> {
     let year = date.year();
@@ -476,4 +782,377 @@ fn to_words(num: u32) -> String {
     } else {
         num.to_string()
     }
+}
+
+fn roman_to_int(s: &str) -> Option<i32> {
+    let mut total = 0;
+    let mut prev_value = 0;
+
+    for c in s.chars().rev() {
+        let value = match c {
+            'I' => 1,
+            'V' => 5,
+            'X' => 10,
+            'L' => 50,
+            'C' => 100,
+            'D' => 500,
+            'M' => 1000,
+            _ => return None, // Invalid Roman numeral
+        };
+
+        if value < prev_value {
+            total -= value;
+        } else {
+            total += value;
+        }
+
+        prev_value = value;
+    }
+
+    Some(total)
+}
+
+fn roman_month_to_int(month_str: &str) -> Option<u32> {
+    match month_str.to_uppercase().as_str() {
+        "I" => Some(1),    // January
+        "II" => Some(2),   // February
+        "III" => Some(3),  // March
+        "IV" => Some(4),   // April
+        "V" => Some(5),    // May
+        "VI" => Some(6),   // June
+        "VII" => Some(7),  // July
+        "VIII" => Some(8), // August
+        "IX" => Some(9),   // September
+        "X" => Some(10),   // October
+        "XI" => Some(11),  // November
+        "XII" => Some(12), // December
+        "C" => Some(3),    // Fix for 'C' (March)
+        _ => None,         // Unsupported month
+    }
+}
+
+fn alphabetic_to_day(s: &str) -> Option<u32> {
+    let chars: Vec<char> = s.chars().collect();
+
+    if chars.len() == 1 {
+        // Single-letter day (e.g., 'w' -> 23)
+        let day = chars[0].to_ascii_lowercase() as u32 - 'a' as u32 + 1;
+        return if day <= 31 { Some(day) } else { None };
+    } else if chars.len() == 2 {
+        // Two-letter day (e.g., 'ae')
+        let first = chars[0].to_ascii_lowercase() as u32 - 'a' as u32;
+        let second = chars[1].to_ascii_lowercase() as u32 - 'a' as u32 + 1;
+        // Return the day as the sum of the two letters
+        return Some(first * 26 + second);
+    }
+
+    None
+}
+
+fn remove_ordinal_suffix(day_str: &str) -> Option<u32> {
+    // Remove suffixes like 'st', 'nd', 'rd', 'th' from the day string
+    let cleaned_day = day_str.trim_end_matches(|c: char| c.is_alphabetic());
+    cleaned_day.parse::<u32>().ok()
+}
+
+fn month_name_to_int(month_str: &str) -> Option<u32> {
+    match month_str.to_lowercase().as_str() {
+        "january" => Some(1),
+        "february" => Some(2),
+        "march" => Some(3),
+        "april" => Some(4),
+        "may" => Some(5),
+        "june" => Some(6),
+        "july" => Some(7),
+        "august" => Some(8),
+        "september" => Some(9),
+        "october" => Some(10),
+        "november" => Some(11),
+        "december" => Some(12),
+        _ => None,
+    }
+}
+
+fn abbreviated_month_to_int(month_str: &str) -> Option<u32> {
+    match month_str.to_lowercase().as_str() {
+        "jan" => Some(1),
+        "feb" => Some(2),
+        "mar" => Some(3),
+        "apr" => Some(4),
+        "may" => Some(5),
+        "jun" => Some(6),
+        "jul" => Some(7),
+        "aug" => Some(8),
+        "sep" => Some(9),
+        "oct" => Some(10),
+        "nov" => Some(11),
+        "dec" => Some(12),
+        _ => None,
+    }
+}
+
+fn words_to_number(word_str: &str) -> Option<i32> {
+    let units = [
+        ("zero", 0),
+        ("one", 1),
+        ("two", 2),
+        ("three", 3),
+        ("four", 4),
+        ("five", 5),
+        ("six", 6),
+        ("seven", 7),
+        ("eight", 8),
+        ("nine", 9),
+        ("ten", 10),
+        ("eleven", 11),
+        ("twelve", 12),
+        ("thirteen", 13),
+        ("fourteen", 14),
+        ("fifteen", 15),
+        ("sixteen", 16),
+        ("seventeen", 17),
+        ("eighteen", 18),
+        ("nineteen", 19),
+    ];
+    let tens = [
+        ("twenty", 20),
+        ("thirty", 30),
+        ("forty", 40),
+        ("fifty", 50),
+        ("sixty", 60),
+        ("seventy", 70),
+        ("eighty", 80),
+        ("ninety", 90),
+    ];
+    let scales = [("hundred", 100), ("thousand", 1000)];
+
+    let mut result = 0;
+    let mut current = 0;
+    let mut last_ten = None; // Track tens for compound numbers like "eighty-four"
+
+    for word in word_str
+        .split_whitespace()
+        .filter(|w| *w != "and" && *w != ",")
+    {
+        // Check if it's a unit (e.g., "four")
+        if let Some(&unit) = units.iter().find(|&&(w, _)| w == word).map(|(_, n)| n) {
+            if let Some(ten) = last_ten {
+                // Combine tens and units (e.g., "eighty" + "four")
+                current += ten + unit; // Combine "eighty" + "four" to get 84
+                last_ten = None; // Reset last_ten after combining
+            } else {
+                current += unit;
+            }
+        }
+        // Check if it's a tens number (e.g., "eighty")
+        else if let Some(&ten) = tens.iter().find(|&&(w, _)| w == word).map(|(_, n)| n) {
+            if last_ten.is_some() {
+                // Handle compound tens (e.g., if another tens was found, apply the previous)
+                current += last_ten.unwrap();
+            }
+            last_ten = Some(ten); // Store the tens value to combine with a unit if needed
+        }
+        // Check if it's a scale (e.g., "hundred", "thousand")
+        else if let Some(&scale) = scales.iter().find(|&&(w, _)| w == word).map(|(_, n)| n) {
+            if scale == 100 {
+                current *= scale; // Multiply by 100 for "hundred"
+            } else {
+                result += current * scale; // Multiply by 1000 for "thousand"
+                current = 0; // Reset current after applying the scale
+            }
+        }
+    }
+
+    result += current; // Add remaining value to result
+    Some(result)
+}
+
+fn parse_custom_date(date_str: &str) -> Option<NaiveDateTime> {
+    let parts: Vec<&str> = date_str.split_whitespace().collect();
+
+    if parts.len() != 3 {
+        return None; // Ensure we have the correct number of parts (date, time, AM/PM)
+    }
+
+    // Split the date part into day, month, and year
+    let date_parts: Vec<&str> = parts[0].split('/').collect();
+    if date_parts.len() != 3 {
+        return None; // Ensure we have day, month, year in the correct format
+    }
+
+    let day: u32 = date_parts[0].parse().ok()?;
+    let month: u32 = date_parts[1].parse().ok()?;
+    let year: i32 = date_parts[2].parse().ok()?;
+
+    // Split the time part into hours and minutes
+    let time_parts: Vec<&str> = parts[1].split(':').collect();
+    if time_parts.len() != 2 {
+        return None; // Ensure we have hour and minute in the correct format
+    }
+
+    let mut hour: u32 = time_parts[0].parse().ok()?;
+    let minute: u32 = time_parts[1].parse().ok()?;
+
+    // Parse the AM/PM part and adjust the hour accordingly
+    let am_pm = parts[2].to_lowercase();
+    if am_pm == "am" {
+        if hour == 12 {
+            hour = 0; // 12 AM is midnight, hour 0
+        }
+    } else if am_pm == "pm" {
+        if hour != 12 {
+            hour += 12; // PM shifts the hour to 12-hour format
+        }
+    } else {
+        return None; // Invalid AM/PM part
+    }
+
+    // Construct NaiveDateTime from the parsed date and time parts
+    let date = NaiveDate::from_ymd_opt(year, month, day)?;
+    let time = NaiveTime::from_hms_opt(hour, minute, 0)?;
+    Some(NaiveDateTime::new(date, time))
+}
+
+fn parse_ordinal_date(date_str: &str) -> Option<NaiveDateTime> {
+    // Split the input based on the '-' separator
+    let parts: Vec<&str> = date_str.split('-').collect();
+
+    // Ensure we have exactly two parts: the year and the day of the year
+    if parts.len() != 2 {
+        return None;
+    }
+
+    // Parse the year (e.g., "2018")
+    let year: i32 = parts[0].parse().ok()?;
+
+    // Parse the day of the year (ordinal date, e.g., "094")
+    let ordinal_day: u32 = parts[1].parse().ok()?;
+
+    // Use from_yo_opt to create the date from the year and ordinal day
+    let date = NaiveDate::from_yo_opt(year, ordinal_day)?;
+
+    // Use 00:00:00 for the time portion
+    let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+
+    // Combine the date and time into NaiveDateTime
+    Some(NaiveDateTime::new(date, time))
+}
+
+fn parse_custom_date_with_weekday(date_str: &str) -> Option<NaiveDateTime> {
+    // Example input: "Wednesday, 14th November 2018"
+    let parts: Vec<&str> = date_str.split_whitespace().collect();
+
+    if parts.len() != 5 {
+        return None; // Ensure we have the expected number of parts
+    }
+
+    // Ignore the weekday (parts[0] should be "Wednesday")
+
+    // Parse the ordinal day (e.g., "14th" -> 14)
+    let day_str = parts[1].trim_end_matches(|c: char| c.is_alphabetic());
+    let day: u32 = day_str.parse().ok()?;
+
+    // Parse the full month name (e.g., "November")
+    let month = match parts[2].to_lowercase().as_str() {
+        "january" => 1,
+        "february" => 2,
+        "march" => 3,
+        "april" => 4,
+        "may" => 5,
+        "june" => 6,
+        "july" => 7,
+        "august" => 8,
+        "september" => 9,
+        "october" => 10,
+        "november" => 11,
+        "december" => 12,
+        _ => return None, // Invalid month name
+    };
+
+    // Parse the year (e.g., "2018")
+    let year: i32 = parts[3].parse().ok()?;
+
+    // Construct the NaiveDateTime from the parsed values
+    let date = NaiveDate::from_ymd_opt(year, month, day)?;
+    let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+    Some(NaiveDateTime::new(date, time))
+}
+
+fn parse_ordinal_date_with_dashes(date_str: &str) -> Option<NaiveDateTime> {
+    // Example input: "2018--180"
+    let parts: Vec<&str> = date_str.split("--").collect();
+
+    // Ensure we have exactly two parts: the year and the day of the year
+    if parts.len() != 2 {
+        return None;
+    }
+
+    // Parse the year (e.g., "2018")
+    let year: i32 = parts[0].parse().ok()?;
+
+    // Parse the ordinal day of the year (e.g., "180")
+    let ordinal_day: u32 = parts[1].parse().ok()?;
+
+    // Use from_yo_opt to create the date from the year and ordinal day
+    let date = NaiveDate::from_yo_opt(year, ordinal_day)?;
+
+    // Use 00:00:00 for the time portion
+    let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+
+    // Combine the date and time into NaiveDateTime
+    Some(NaiveDateTime::new(date, time))
+}
+
+fn parse_iso8601_date(date_str: &str) -> Option<i64> {
+    // Attempt to parse the ISO 8601 formatted string
+    if let Ok(datetime) = DateTime::parse_from_rfc3339(date_str) {
+        // Convert the parsed datetime to milliseconds since the Unix Epoch
+        Some(datetime.timestamp_millis())
+    } else {
+        None
+    }
+}
+
+fn parse_iso8601_with_timezone(date_str: &str) -> Option<i64> {
+    // Normalize the timezone format from "+0000" to "+00:00"
+    let normalized_str = if date_str.ends_with("+0000") {
+        date_str.replace("+0000", "+00:00")
+    } else {
+        date_str.to_string()
+    };
+
+    // Attempt to parse the normalized ISO 8601 formatted string
+    if let Ok(datetime) = DateTime::parse_from_rfc3339(&normalized_str) {
+        // Convert the parsed datetime to milliseconds since the Unix Epoch
+        Some(datetime.timestamp_millis())
+    } else {
+        None
+    }
+}
+
+fn parse_date_only(date_str: &str) -> Option<i64> {
+    // Try parsing the date in "YYYY-MM-DD" format
+    if let Ok(naive_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+        // Create a NaiveDateTime with time set to 00:00:00 using the non-deprecated `and_hms_opt`
+        if let Some(naive_datetime) = naive_date.and_hms_opt(0, 0, 0) {
+            // Convert the NaiveDateTime to a UTC timestamp in milliseconds
+            return Some(Utc.from_utc_datetime(&naive_datetime).timestamp_millis());
+        }
+    }
+    None
+}
+
+fn parse_year_only(date_str: &str) -> Option<i64> {
+    // Try parsing the string as a year (e.g., "2018")
+    if let Ok(year) = date_str.parse::<i32>() {
+        // Create a NaiveDate for January 1st of the given year
+        if let Some(naive_date) = NaiveDate::from_ymd_opt(year, 1, 1) {
+            // Set the time to 00:00:00
+            if let Some(naive_datetime) = naive_date.and_hms_opt(0, 0, 0) {
+                // Convert the NaiveDateTime to a UTC timestamp in milliseconds
+                return Some(Utc.from_utc_datetime(&naive_datetime).timestamp_millis());
+            }
+        }
+    }
+    None
 }
