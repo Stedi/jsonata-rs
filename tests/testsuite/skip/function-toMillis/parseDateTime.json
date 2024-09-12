@@ -22,30 +22,5 @@
     "expr": "$toMillis('13:45', '[H]:[m]') ~> $fromMillis() ~> $substringAfter('T')",
     "data": {},
     "result": "13:45:00.000Z"
-  },
-  {
-    "function": "#toMillis",
-    "category": "default unspecified parts",
-    "description": "date only defaults time to midnight",
-    "expr": "$toMillis('Wednesday, 14th November 2018', '[FNn], [D1o] [MNn] [Y]') ~> $fromMillis()",
-    "data": {},
-    "result": "2018-11-14T00:00:00.000Z"
-  },
-  {
-    "function": "#toMillis",
-    "category": "default unspecified parts",
-    "description": "date only defaults time to midnight",
-    "expr": "$toMillis('Mon, Twelfth November 2018', '[FNn,*-3], [DWwo] [MNn] [Y]') ~> $fromMillis()",
-    "data": {},
-    "result": "2018-11-12T00:00:00.000Z"
-  },
-
-  {
-    "function": "#toMillis",
-    "category": "parsing day-of-year",
-    "description": "365th day of 2018 is 31st December",
-    "expr": "$toMillis('three hundred and sixty-fifth day of 2018', '[dwo] day of [Y]') ~> $fromMillis()",
-    "data": {},
-    "result": "2018-12-31T00:00:00.000Z"
   }
 ]

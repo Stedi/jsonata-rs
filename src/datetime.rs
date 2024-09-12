@@ -219,6 +219,27 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
             None
         }
 
+        // Handle the format '[FNn,*-3], [DWwo] [MNn] [Y]' (e.g., 'Mon, Twelfth November 2018')
+        "[FNn,*-3], [DWwo] [MNn] [Y]" => {
+            if let Some(parsed_datetime) = parse_custom_date_with_weekday_and_ordinal(timestamp_str)
+            {
+                // Convert NaiveDateTime to UTC timestamp in milliseconds
+                let utc_datetime = Utc.from_utc_datetime(&parsed_datetime);
+                return Some(utc_datetime.timestamp_millis());
+            }
+            None
+        }
+
+        // Handle the format '[dwo] day of [Y]' (e.g., 'three hundred and sixty-fifth day of 2018')
+        "[dwo] day of [Y]" => {
+            if let Some(parsed_datetime) = parse_ordinal_day_of_year(timestamp_str) {
+                // Convert NaiveDateTime to UTC timestamp in milliseconds
+                let utc_datetime = Utc.from_utc_datetime(&parsed_datetime);
+                return Some(utc_datetime.timestamp_millis());
+            }
+            None
+        }
+
         // Handle the format '[Y]--[d]' (e.g., '2018--180')
         "[Y]--[d]" => {
             if let Some(parsed_datetime) = parse_ordinal_date_with_dashes(timestamp_str) {
@@ -1235,13 +1256,17 @@ fn parse_ordinal_date(date_str: &str) -> Option<NaiveDateTime> {
 
 fn parse_custom_date_with_weekday(date_str: &str) -> Option<NaiveDateTime> {
     // Example input: "Wednesday, 14th November 2018"
-    let parts: Vec<&str> = date_str.split_whitespace().collect();
+    let parts: Vec<&str> = date_str
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .filter(|&x| !x.is_empty())
+        .collect();
 
-    if parts.len() != 5 {
-        return None; // Ensure we have the expected number of parts
+    // Ensure we have 4 parts: "Wednesday", "14th", "November", "2018"
+    if parts.len() != 4 {
+        return None;
     }
 
-    // Ignore the weekday (parts[0] should be "Wednesday")
+    // Ignore the weekday (parts[0], which should be "Wednesday")
 
     // Parse the ordinal day (e.g., "14th" -> 14)
     let day_str = parts[1].trim_end_matches(|c: char| c.is_alphabetic());
@@ -1271,6 +1296,73 @@ fn parse_custom_date_with_weekday(date_str: &str) -> Option<NaiveDateTime> {
     let date = NaiveDate::from_ymd_opt(year, month, day)?;
     let time = NaiveTime::from_hms_opt(0, 0, 0)?;
     Some(NaiveDateTime::new(date, time))
+}
+
+fn parse_custom_date_with_weekday_and_ordinal(date_str: &str) -> Option<NaiveDateTime> {
+    // Example input: "Mon, Twelfth November 2018"
+    let parts: Vec<&str> = date_str
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .filter(|&x| !x.is_empty())
+        .collect();
+
+    // Ensure we have 4 parts: "Mon", "Twelfth", "November", "2018"
+    if parts.len() != 4 {
+        return None;
+    }
+
+    // Ignore the weekday abbreviation (parts[0], which should be "Mon")
+
+    // Parse the ordinal day in words (e.g., "Twelfth")
+    let day = words_to_number(parts[1])? as u32;
+
+    // Parse the full month name (e.g., "November")
+    let month = match parts[2].to_lowercase().as_str() {
+        "january" => 1,
+        "february" => 2,
+        "march" => 3,
+        "april" => 4,
+        "may" => 5,
+        "june" => 6,
+        "july" => 7,
+        "august" => 8,
+        "september" => 9,
+        "october" => 10,
+        "november" => 11,
+        "december" => 12,
+        _ => return None, // Invalid month name
+    };
+
+    // Parse the year (e.g., "2018")
+    let year: i32 = parts[3].parse().ok()?;
+
+    // Construct the NaiveDateTime from the parsed values
+    let date = NaiveDate::from_ymd_opt(year, month, day)?;
+    let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+    Some(NaiveDateTime::new(date, time))
+}
+
+fn parse_ordinal_day_of_year(date_str: &str) -> Option<NaiveDateTime> {
+    // Example input: "three hundred and sixty-fifth day of 2018"
+    let parts: Vec<&str> = date_str.split_whitespace().collect();
+
+    // The input should follow the format: "[ordinal] day of [year]"
+    if parts.len() < 5 {
+        return None;
+    }
+
+    // Combine the first 3+ parts into the ordinal word (e.g., "three hundred and sixty-fifth")
+    let ordinal_day_words = parts[..(parts.len() - 3)].join(" ");
+
+    // Convert the ordinal day in words to a number
+    let day_of_year = words_to_number(&ordinal_day_words)? as u32;
+
+    // Parse the year (e.g., "2018")
+    let year: i32 = parts.last()?.parse().ok()?;
+
+    // Construct the NaiveDate using the day of the year
+    let parsed_date = NaiveDate::from_yo_opt(year, day_of_year)?;
+    let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+    Some(NaiveDateTime::new(parsed_date, time))
 }
 
 fn parse_ordinal_date_with_dashes(date_str: &str) -> Option<NaiveDateTime> {
