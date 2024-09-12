@@ -550,5 +550,17 @@
     "expr": "$fromMillis(1419940800000, '[YN]-[M')",
     "data": {},
     "code": "D3135"
+  },
+  {
+    "function": "#fromMillis",
+    "category": "Default format",
+    "description": "Undefined picture string defaults to ISO 8601",
+    "expr": "[$fromMillis(1540127100000), $fromMillis(1540127100000, (),'-0500'), $fromMillis(1540127100000, (),'0000')]",
+    "data": {},
+    "result": [
+      "2018-10-21T13:05:00.000Z",
+      "2018-10-21T08:05:00.000-05:00",
+      "2018-10-21T13:05:00.000Z"
+    ]
   }
 ]

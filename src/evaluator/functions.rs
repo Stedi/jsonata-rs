@@ -912,8 +912,22 @@ pub fn from_millis<'a>(
 
     // Extract the optional picture and timezone arguments
     let (picture, timezone) = match args {
-        [_, picture, timezone] => (picture.as_str(), timezone.as_str()),
-        [_, picture] => (picture.as_str(), Cow::Borrowed("")),
+        [_, picture, timezone] => (
+            if picture.is_string() {
+                picture.as_str()
+            } else {
+                Cow::Borrowed("") // Treat non-strings (like ()) as empty strings
+            },
+            timezone.as_str(),
+        ),
+        [_, picture] => (
+            if picture.is_string() {
+                picture.as_str()
+            } else {
+                Cow::Borrowed("")
+            },
+            Cow::Borrowed(""),
+        ),
         _ => (Cow::Borrowed(""), Cow::Borrowed("")),
     };
 

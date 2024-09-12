@@ -695,6 +695,9 @@ pub fn to_roman_numerals_lower(year: i32) -> String {
 
 // Helper function to parse timezone strings like "±HHMM"
 pub fn parse_timezone_offset(timezone: &str) -> Option<FixedOffset> {
+    if timezone == "0000" {
+        return FixedOffset::east_opt(0); // UTC
+    }
     if timezone.len() != 5 {
         return None;
     }
