@@ -310,5 +310,13 @@
     "expr": "$toMillis('three hundred and sixty-fifth day of 2018', '[dwo] day of [Y]') ~> $fromMillis()",
     "data": {},
     "result": "2018-12-31T00:00:00.000Z"
+  },
+  {
+    "function": "#toMillis",
+    "category": "default unspecified parts",
+    "description": "hours/minutes only defaults seconds to zero",
+    "expr": "$toMillis('13:45', '[H]:[m]') ~> $fromMillis() ~> $substringAfter('T')",
+    "data": {},
+    "result": "13:45:00.000Z"
   }
 ]

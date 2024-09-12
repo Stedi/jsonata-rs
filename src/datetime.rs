@@ -189,6 +189,26 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
             None
         }
 
+        // Handle the format '[H]:[m]' (e.g., '13:45')
+        "[H]:[m]" => {
+            let parts: Vec<&str> = timestamp_str.split(':').collect();
+            if parts.len() == 2 {
+                // Parse the hour and minute
+                let hour: u32 = parts[0].parse().ok()?;
+                let minute: u32 = parts[1].parse().ok()?;
+
+                // Use the current date along with the given time
+                let now = Utc::now(); // Get current date
+                let parsed_date = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day())?;
+                let time = NaiveTime::from_hms_opt(hour, minute, 0)?;
+                let datetime = NaiveDateTime::new(parsed_date, time);
+
+                // Return the timestamp in milliseconds
+                return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
+            }
+            None
+        }
+
         // Custom date format handling with time and AM/PM
         "[D1]/[M1]/[Y0001] [h]:[m] [P]" => {
             if let Some(parsed_datetime) = parse_custom_date(timestamp_str) {
