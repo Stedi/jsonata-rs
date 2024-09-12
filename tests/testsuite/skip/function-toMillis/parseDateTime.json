@@ -6,13 +6,5 @@
     "expr": "$toMillis('13:45', '[H]:[m]') ~> $fromMillis() ~> $substringBefore('T') = $substringBefore($now(), 'T')",
     "data": {},
     "result": true
-  },
-  {
-    "function": "#toMillis",
-    "category": "default unspecified parts",
-    "description": "hours/minutes only defaults seconds to zero",
-    "expr": "$toMillis('13:45', '[H]:[m]') ~> $fromMillis() ~> $substringAfter('T')",
-    "data": {},
-    "result": "13:45:00.000Z"
   }
 ]
