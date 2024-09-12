@@ -326,8 +326,6 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         "[Da] [MA] [Yi]" => {
             let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
             if parts.len() == 3 {
-                // Ignore the weekday part ('w')
-
                 // Convert the Roman numeral month (e.g., 'C') to an integer (e.g., 3 for March)
                 let month = roman_month_to_int(parts[1])?;
 
@@ -998,13 +996,16 @@ fn alphabetic_to_day(s: &str) -> Option<u32> {
         return if day <= 31 { Some(day) } else { None };
     } else if chars.len() == 2 {
         // Two-letter day (e.g., 'ae')
-        let first = chars[0].to_ascii_lowercase() as u32 - 'a' as u32;
+        let first = chars[0].to_ascii_lowercase() as u32 - 'a' as u32 + 1;
         let second = chars[1].to_ascii_lowercase() as u32 - 'a' as u32 + 1;
-        // Return the day as the sum of the two letters
-        return Some(first * 26 + second);
+
+        // Base-26 calculation for two-letter day
+        let day = first * 26 + second;
+        // Ensure the day is valid (1 to 31)
+        return if day <= 31 { Some(day) } else { None };
     }
 
-    None
+    None // Invalid day format
 }
 
 fn remove_day_suffix(day_str: &str) -> String {

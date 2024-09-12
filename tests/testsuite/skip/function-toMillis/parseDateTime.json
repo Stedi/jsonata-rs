@@ -1,14 +1,6 @@
 [
   {
     "function": "#toMillis",
-    "category": "dates with letters instead of numbers",
-    "description": "day/month in letters, year in roman numerals",
-    "expr": "$toMillis('ae C mmxviii', '[Da] [MA] [Yi]')",
-    "data": {},
-    "result": 1522454400000
-  },
-  {
-    "function": "#toMillis",
     "category": "default unspecified parts",
     "description": "time only defaults to todays date",
     "expr": "$toMillis('13:45', '[H]:[m]') ~> $fromMillis() ~> $substringBefore('T') = $substringBefore($now(), 'T')",

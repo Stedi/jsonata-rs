@@ -97,6 +97,14 @@
   },
   {
     "function": "#toMillis",
+    "category": "dates with letters instead of numbers",
+    "description": "day/month in letters, year in roman numerals",
+    "expr": "$toMillis('ae C mmxviii', '[Da] [MA] [Yi]')",
+    "data": {},
+    "result": 1522454400000
+  },
+  {
+    "function": "#toMillis",
     "category": "months in words",
     "description": "should parse year/month/day",
     "expr": "$toMillis('27th April 2008', '[D1o] [MNn] [Y0001]')",
