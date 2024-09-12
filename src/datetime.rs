@@ -920,22 +920,21 @@ fn roman_to_int(s: &str) -> Option<i32> {
     Some(total)
 }
 
-fn roman_month_to_int(month_str: &str) -> Option<u32> {
+pub fn roman_month_to_int(month_str: &str) -> Option<u32> {
     match month_str.to_uppercase().as_str() {
-        "I" => Some(1),    // January
-        "II" => Some(2),   // February
-        "III" => Some(3),  // March
-        "IV" => Some(4),   // April
-        "V" => Some(5),    // May
-        "VI" => Some(6),   // June
-        "VII" => Some(7),  // July
-        "VIII" => Some(8), // August
-        "IX" => Some(9),   // September
-        "X" => Some(10),   // October
-        "XI" => Some(11),  // November
-        "XII" => Some(12), // December
-        "C" => Some(3),    // Fix for 'C' (March)
-        _ => None,         // Unsupported month
+        "I" | "A" => Some(1),    // January (I or A for abbreviated January)
+        "II" | "B" => Some(2),   // February (II or B for abbreviated February)
+        "III" | "C" => Some(3),  // March (III or C for abbreviated March)
+        "IV" | "D" => Some(4),   // April (IV or D for abbreviated April)
+        "V" | "E" => Some(5),    // May (V or E for abbreviated May)
+        "VI" | "F" => Some(6),   // June (VI or F for abbreviated June)
+        "VII" | "G" => Some(7),  // July (VII or G for abbreviated July)
+        "VIII" | "H" => Some(8), // August (VIII or H for abbreviated August)
+        "IX" => Some(9),         // September (IX or I for abbreviated September)
+        "X" | "J" => Some(10),   // October (X or J for abbreviated October)
+        "XI" | "K" => Some(11),  // November (XI or K for abbreviated November)
+        "XII" | "L" => Some(12), // December (XII or L for abbreviated December)
+        _ => None,               // Unsupported month
     }
 }
 
@@ -1140,13 +1139,13 @@ fn parse_custom_date(date_str: &str) -> Option<NaiveDateTime> {
     let parts: Vec<&str> = date_str.split_whitespace().collect();
 
     if parts.len() != 3 {
-        return None; // Ensure we have the correct number of parts (date, time, AM/PM)
+        return None;
     }
 
     // Split the date part into day, month, and year
     let date_parts: Vec<&str> = parts[0].split('/').collect();
     if date_parts.len() != 3 {
-        return None; // Ensure we have day, month, year in the correct format
+        return None;
     }
 
     let day: u32 = date_parts[0].parse().ok()?;
@@ -1156,24 +1155,23 @@ fn parse_custom_date(date_str: &str) -> Option<NaiveDateTime> {
     // Split the time part into hours and minutes
     let time_parts: Vec<&str> = parts[1].split(':').collect();
     if time_parts.len() != 2 {
-        return None; // Ensure we have hour and minute in the correct format
+        return None;
     }
 
     let mut hour: u32 = time_parts[0].parse().ok()?;
     let minute: u32 = time_parts[1].parse().ok()?;
 
-    // Parse the AM/PM part and adjust the hour accordingly
     let am_pm = parts[2].to_lowercase();
     if am_pm == "am" {
         if hour == 12 {
-            hour = 0; // 12 AM is midnight, hour 0
+            hour = 0;
         }
     } else if am_pm == "pm" {
         if hour != 12 {
-            hour += 12; // PM shifts the hour to 12-hour format
+            hour += 12;
         }
     } else {
-        return None; // Invalid AM/PM part
+        return None;
     }
 
     // Construct NaiveDateTime from the parsed date and time parts
