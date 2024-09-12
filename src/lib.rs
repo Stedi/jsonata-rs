@@ -160,6 +160,8 @@ impl<'a> JsonAta<'a> {
         bind_native!("sqrt", 1, fn_sqrt);
         bind_native!("string", 1, fn_string);
         bind_native!("substring", 3, fn_substring);
+        bind_native!("substringBefore", 2, fn_substring_before);
+        bind_native!("substringAfter", 2, fn_substring_after);
         bind_native!("sum", 1, fn_sum);
         bind_native!("trim", 1, fn_trim);
         bind_native!("uppercase", 1, fn_uppercase);
