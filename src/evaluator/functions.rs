@@ -429,32 +429,24 @@ pub fn fn_substring_before<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    // Get the 'str' argument, or use undefined if not provided
     let string = args.first().copied().unwrap_or_else(Value::undefined);
 
-    // Get the 'chars' argument or use undefined if not provided
     let chars = args.get(1).copied().unwrap_or_else(Value::undefined);
 
-    // Check if 'string' is provided and is a string
     if !string.is_string() {
         return Ok(Value::undefined());
     }
 
-    // Check if 'chars' is provided and is a string
     if !chars.is_string() {
         return Err(Error::D3010EmptyPattern(context.char_index));
     }
 
-    // Convert both arguments to &str
     let string: &str = &string.as_str();
     let chars: &str = &chars.as_str();
 
-    // If 'chars' is not found in 'string', return the original string
     if let Some(index) = string.find(chars) {
-        // Return the substring before the first occurrence of 'chars'
         Ok(Value::string(context.arena, &string[..index]))
     } else {
-        // Return the original string if 'chars' is not found
         Ok(Value::string(context.arena, string))
     }
 }
@@ -463,29 +455,23 @@ pub fn fn_substring_after<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    // Get the 'str' argument, or use undefined if not provided
     let string = args.first().copied().unwrap_or_else(Value::undefined);
 
-    // Get the 'chars' argument or use undefined if not provided
     let chars = args.get(1).copied().unwrap_or_else(Value::undefined);
 
-    // Check if 'string' is provided and is a string
     if !string.is_string() {
         return Ok(Value::undefined());
     }
 
-    // Check if 'chars' is provided and is a string
     if !chars.is_string() {
         return Err(Error::D3010EmptyPattern(context.char_index));
     }
 
-    // Convert both arguments to &str
     let string: &str = &string.as_str();
     let chars: &str = &chars.as_str();
 
-    // If 'chars' is found in 'string', return the substring after the first occurrence of 'chars'
     if let Some(index) = string.find(chars) {
-        let after_index = index + chars.len(); // Get the index after the 'chars' occurrence
+        let after_index = index + chars.len();
         Ok(Value::string(context.arena, &string[after_index..]))
     } else {
         // Return the original string if 'chars' is not found

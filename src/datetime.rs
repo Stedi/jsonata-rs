@@ -183,7 +183,7 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         }
 
         "[Y]-[M]-[D]" => {
-            if let Some(millis) = parse_ymd_date(timestamp_str, picture) {
+            if let Some(millis) = parse_ymd_date(timestamp_str) {
                 return Some(millis);
             }
             None
@@ -212,7 +212,6 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         // Custom date format handling with time and AM/PM
         "[D1]/[M1]/[Y0001] [h]:[m] [P]" => {
             if let Some(parsed_datetime) = parse_custom_date(timestamp_str) {
-                // Convert NaiveDateTime to UTC timestamp in milliseconds
                 let utc_datetime = Utc.from_utc_datetime(&parsed_datetime);
                 return Some(utc_datetime.timestamp_millis());
             }
@@ -222,7 +221,6 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         // Handle the format '[Y0001]-[d001]' (e.g., '2018-094')
         "[Y0001]-[d001]" => {
             if let Some(parsed_datetime) = parse_ordinal_date(timestamp_str) {
-                // Convert NaiveDateTime to UTC timestamp in milliseconds
                 let utc_datetime = Utc.from_utc_datetime(&parsed_datetime);
                 return Some(utc_datetime.timestamp_millis());
             }
@@ -232,7 +230,6 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         // Handle the format '[FNn], [D1o] [MNn] [Y]' (e.g., 'Wednesday, 14th November 2018')
         "[FNn], [D1o] [MNn] [Y]" => {
             if let Some(parsed_datetime) = parse_custom_date_with_weekday(timestamp_str) {
-                // Convert NaiveDateTime to UTC timestamp in milliseconds
                 let utc_datetime = Utc.from_utc_datetime(&parsed_datetime);
                 return Some(utc_datetime.timestamp_millis());
             }
@@ -243,7 +240,6 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         "[FNn,*-3], [DWwo] [MNn] [Y]" => {
             if let Some(parsed_datetime) = parse_custom_date_with_weekday_and_ordinal(timestamp_str)
             {
-                // Convert NaiveDateTime to UTC timestamp in milliseconds
                 let utc_datetime = Utc.from_utc_datetime(&parsed_datetime);
                 return Some(utc_datetime.timestamp_millis());
             }
@@ -253,7 +249,6 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         // Handle the format '[dwo] day of [Y]' (e.g., 'three hundred and sixty-fifth day of 2018')
         "[dwo] day of [Y]" => {
             if let Some(parsed_datetime) = parse_ordinal_day_of_year(timestamp_str) {
-                // Convert NaiveDateTime to UTC timestamp in milliseconds
                 let utc_datetime = Utc.from_utc_datetime(&parsed_datetime);
                 return Some(utc_datetime.timestamp_millis());
             }
@@ -263,7 +258,6 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         // Handle the format '[Y]--[d]' (e.g., '2018--180')
         "[Y]--[d]" => {
             if let Some(parsed_datetime) = parse_ordinal_date_with_dashes(timestamp_str) {
-                // Convert NaiveDateTime to UTC timestamp in milliseconds
                 let utc_datetime = Utc.from_utc_datetime(&parsed_datetime);
                 return Some(utc_datetime.timestamp_millis());
             }
@@ -279,8 +273,6 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
             }
 
             let day_str = remove_day_suffix(parts[0]);
-
-            // Convert the day word (e.g., 'twenty-seven') into a number
             let day = words_to_number(&day_str.to_lowercase())? as u32;
 
             // Convert the month name (e.g., 'April') into its corresponding numeric value
@@ -289,17 +281,15 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
             // Handle the year: try parsing it as a direct number first, then fall back to word-based parsing
             let year_str = parts[2..].join(" ");
             let year = match year_str.parse::<i32>() {
-                Ok(num) => num,                               // If it's a numeric year (e.g., '2008')
+                Ok(num) => num,
                 Err(_) => words_to_number(&year_str)? as i32, // If it's word-based (e.g., 'two thousand and seventeen')
             };
             println!("year {}", year);
 
-            // Create a NaiveDate from the parsed day, month, and year
             let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
             let time = NaiveTime::from_hms_opt(0, 0, 0)?;
             let datetime = NaiveDateTime::new(parsed_date, time);
 
-            // Return the timestamp in milliseconds
             Some(Utc.from_utc_datetime(&datetime).timestamp_millis())
         }
 
@@ -309,7 +299,7 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
             if parts.len() == 3 {
                 let day: u32 = parts[0].parse().ok()?;
                 let month: u32 = parts[1].parse().ok()?;
-                let year = roman_to_int(parts[2])?; // Convert the Roman numeral year to an integer
+                let year = roman_to_int(parts[2])?;
                 let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
                 let time = NaiveTime::from_hms_opt(0, 0, 0)?;
                 let datetime = NaiveDateTime::new(parsed_date, time);
@@ -322,21 +312,14 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         "[D1] [Mi] [YI]" => {
             let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
             if parts.len() == 3 {
-                // Parse the day as an integer
                 let day: u32 = parts[0].parse().ok()?;
-
-                // Convert the Roman numeral month to an integer (e.g., 'iii' -> 3)
                 let month = roman_to_int(parts[1].to_uppercase().as_str())? as u32;
-
-                // Convert the Roman numeral year to an integer (e.g., 'MMXVIII' -> 2018)
                 let year = roman_to_int(parts[2])?;
 
-                // Construct the date from the parsed day, month, and year
                 let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
                 let time = NaiveTime::from_hms_opt(0, 0, 0)?;
                 let datetime = NaiveDateTime::new(parsed_date, time);
 
-                // Return the timestamp in milliseconds
                 return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
             }
             None
@@ -346,21 +329,14 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         "[Da] [MA] [Yi]" => {
             let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
             if parts.len() == 3 {
-                // Convert the Roman numeral month (e.g., 'C') to an integer (e.g., 3 for March)
                 let month = roman_month_to_int(parts[1])?;
-
-                // Convert the Roman numeral year (e.g., 'mmxviii') to an integer (e.g., 2018)
                 let year = roman_to_int(parts[2].to_uppercase().as_str())?;
-
-                // Convert the alphabetic day (e.g., 'w') to a number (e.g., 23)
                 let day = alphabetic_to_day(parts[0])?;
 
-                // Construct the date from the parsed day, month, and year
                 let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
                 let time = NaiveTime::from_hms_opt(0, 0, 0)?;
                 let datetime = NaiveDateTime::new(parsed_date, time);
 
-                // Return the timestamp in milliseconds
                 return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
             }
             None
@@ -390,21 +366,14 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         "[D1o] [MNn] [Y0001]" => {
             let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
             if parts.len() == 3 {
-                // Convert the day with ordinal suffix (e.g., '27th') to a number
                 let day = remove_ordinal_suffix(parts[0])?;
-
-                // Convert the month name (e.g., 'April') to its corresponding number
                 let month = month_name_to_int(parts[1])?;
-
-                // Convert the year (e.g., '2008') to an integer
                 let year = parts[2].parse::<i32>().ok()?;
 
-                // Construct the date from the parsed day, month, and year
                 let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
                 let time = NaiveTime::from_hms_opt(0, 0, 0)?;
                 let datetime = NaiveDateTime::new(parsed_date, time);
 
-                // Return the timestamp in milliseconds
                 return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
             }
             None
@@ -414,21 +383,14 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         "[D1] [MNn] [Y0001]" => {
             let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
             if parts.len() == 3 {
-                // Parse the day (e.g., '21')
                 let day = parts[0].parse::<u32>().ok()?;
-
-                // Convert the month name (e.g., 'August') to its corresponding number
                 let month = month_name_to_int(parts[1])?;
-
-                // Parse the year (e.g., '2017')
                 let year = parts[2].parse::<i32>().ok()?;
 
-                // Construct the date from the parsed day, month, and year
                 let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
                 let time = NaiveTime::from_hms_opt(0, 0, 0)?;
                 let datetime = NaiveDateTime::new(parsed_date, time);
 
-                // Return the timestamp in milliseconds
                 return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
             }
             None
@@ -438,21 +400,14 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         "[D1] [MNn,3-3] [Y0001]" => {
             let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
             if parts.len() == 3 {
-                // Parse the day (e.g., '2')
                 let day = parts[0].parse::<u32>().ok()?;
-
-                // Convert the abbreviated month name (e.g., 'Feb') to its corresponding number
                 let month = abbreviated_month_to_int(parts[1])?;
-
-                // Parse the year (e.g., '2012')
                 let year = parts[2].parse::<i32>().ok()?;
 
-                // Construct the date from the parsed day, month, and year
                 let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
                 let time = NaiveTime::from_hms_opt(0, 0, 0)?;
                 let datetime = NaiveDateTime::new(parsed_date, time);
 
-                // Return the timestamp in milliseconds
                 return Some(Utc.from_utc_datetime(&datetime).timestamp_millis());
             }
             None
@@ -460,7 +415,6 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
 
         // Handle the format '[D1o] [M01] [Y0001]' (e.g., '21st 12 1881')
         "[D1o] [M01] [Y0001]" => {
-            // Clean the ordinal suffix from the day part ('st', 'nd', 'rd', 'th')
             let cleaned_timestamp = timestamp_str
                 .replace("th", "")
                 .replace("st", "")
@@ -508,25 +462,18 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
 
         // Handle the format '[Dw] [MNn] [Yw]' (e.g., 'twenty-first August two thousand and seventeen')
         "[Dw] [MNn] [Yw]" => {
-            // Split the timestamp string into parts (day, month, year)
             let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
             if parts.len() < 5 {
                 return None;
             }
 
             let day_str = parse_day_str(parts[0]);
-
-            // Convert the day word (e.g., 'twenty-first') into a number
             let day = words_to_number(&day_str.to_lowercase())? as u32;
-
-            // Convert the month name (e.g., 'August') into its corresponding numeric value
             let month = month_name_to_int(parts[1])?;
 
-            // Combine the remaining parts for the year string (e.g., 'two thousand and seventeen')
             let year_str = parts[2..].join(" ");
             let year = words_to_number(&year_str.to_lowercase())? as i32;
 
-            // Create a NaiveDate from the parsed day, month, and year
             let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
             let time = NaiveTime::from_hms_opt(0, 0, 0)?;
             let datetime = NaiveDateTime::new(parsed_date, time);
@@ -543,18 +490,12 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
             }
 
             let day_str = parse_day_str(parts[0]);
-
-            // Convert the day word (e.g., 'twenty-first') into a number
             let day = words_to_number(&day_str.to_lowercase())? as u32;
-
-            // Convert the month name (e.g., 'August') into its corresponding numeric value
             let month = month_name_to_int(parts[1])?;
 
-            // Combine the remaining parts for the year string (e.g., 'two thousand and seventeen')
             let year_str = parts[2..].join(" ");
             let year = words_to_number(&year_str.to_lowercase())? as i32;
 
-            // Create a NaiveDate from the parsed day, month, and year
             let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
             let time = NaiveTime::from_hms_opt(0, 0, 0)?;
             let datetime = NaiveDateTime::new(parsed_date, time);
@@ -565,7 +506,6 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
 
         // Handle the format '[DW] of [MNn], [Yw]' (e.g., 'Twentieth of August, two thousand and seventeen')
         "[DW] of [MNn], [Yw]" => {
-            // Normalize the input string: remove "of" and ","
             let cleaned_str = timestamp_str.replace("of", "").replace(",", "");
             let parts: Vec<&str> = cleaned_str.split_whitespace().collect();
             if parts.len() < 5 {
@@ -574,19 +514,15 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
 
             let day_str = parts[0]; // Handle the day part (e.g., "Twentieth")
             let day = words_to_number(&day_str.to_lowercase())? as u32;
-
             let month = month_name_to_int(parts[1])?; // Handle the month (e.g., "August")
 
-            // Handle the year (e.g., 'two thousand and seventeen')
             let year_str = parts[2..].join(" ");
             let year = words_to_number(&year_str.to_lowercase())? as i32;
 
-            // Create a NaiveDate from the parsed day, month, and year
             let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
             let time = NaiveTime::from_hms_opt(0, 0, 0)?;
             let datetime = NaiveDateTime::new(parsed_date, time);
 
-            // Return the timestamp in milliseconds
             Some(Utc.from_utc_datetime(&datetime).timestamp_millis())
         }
 
@@ -645,7 +581,6 @@ fn handle_week_of_month(date: &DateTime<FixedOffset>) -> String {
     let first_weekday_of_month = first_day_of_month.weekday().num_days_from_sunday();
     let week_of_month = ((day_of_month + first_weekday_of_month - 1) / 7) + 1;
 
-    // Consolidate identical blocks
     if (month == 12 && iso_week == 1)
         || (week_of_month == 5 && month == 1 && iso_week == 5)
         || (week_of_month == 1 && first_weekday_of_month == 5 && iso_week == 5)
@@ -663,7 +598,6 @@ fn handle_week_of_month(date: &DateTime<FixedOffset>) -> String {
 fn handle_trimmed_timezone(date: &DateTime<FixedOffset>) -> String {
     let tz_offset = date.format("%z").to_string();
 
-    // Combine the two identical blocks
     if tz_offset == "+0000" || tz_offset == "-0000" {
         "0".to_string()
     } else if tz_offset[3..] == *"00" {
@@ -888,12 +822,10 @@ fn format_day_in_words_with_ordinal(day: u32) -> String {
         return format!("{}th", word);
     }
 
-    // Determine the suffix only if the word form doesn't already include it
     if word.ends_with("first") || word.ends_with("second") || word.ends_with("third") {
         return word;
     }
 
-    // Determine the suffix based on the last digit
     let suffix = match day % 10 {
         1 => "st",
         2 => "nd",
@@ -1271,7 +1203,6 @@ fn parse_ordinal_date(date_str: &str) -> Option<NaiveDateTime> {
     // Use 00:00:00 for the time portion
     let time = NaiveTime::from_hms_opt(0, 0, 0)?;
 
-    // Combine the date and time into NaiveDateTime
     Some(NaiveDateTime::new(date, time))
 }
 
@@ -1286,8 +1217,6 @@ fn parse_custom_date_with_weekday(date_str: &str) -> Option<NaiveDateTime> {
     if parts.len() != 4 {
         return None;
     }
-
-    // Ignore the weekday (parts[0], which should be "Wednesday")
 
     // Parse the ordinal day (e.g., "14th" -> 14)
     let day_str = parts[1].trim_end_matches(|c: char| c.is_alphabetic());
@@ -1330,8 +1259,6 @@ fn parse_custom_date_with_weekday_and_ordinal(date_str: &str) -> Option<NaiveDat
     if parts.len() != 4 {
         return None;
     }
-
-    // Ignore the weekday abbreviation (parts[0], which should be "Mon")
 
     // Parse the ordinal day in words (e.g., "Twelfth")
     let day = words_to_number(parts[1])? as u32;
@@ -1439,11 +1366,8 @@ fn parse_iso8601_with_timezone(date_str: &str) -> Option<i64> {
 }
 
 fn parse_date_only(date_str: &str) -> Option<i64> {
-    // Try parsing the date in "YYYY-MM-DD" format
     if let Ok(naive_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-        // Create a NaiveDateTime with time set to 00:00:00 using the non-deprecated `and_hms_opt`
         if let Some(naive_datetime) = naive_date.and_hms_opt(0, 0, 0) {
-            // Convert the NaiveDateTime to a UTC timestamp in milliseconds
             return Some(Utc.from_utc_datetime(&naive_datetime).timestamp_millis());
         }
     }
@@ -1465,26 +1389,22 @@ fn parse_year_only(date_str: &str) -> Option<i64> {
     None
 }
 
-fn parse_ymd_date(timestamp_str: &str, format: &str) -> Option<i64> {
-    if format == "[Y]-[M]-[D]" {
-        // Split the input timestamp by the '-' separator
-        let parts: Vec<&str> = timestamp_str.split('-').collect();
-        if parts.len() != 3 {
-            return None; // Ensure the date format has exactly 3 parts (year, month, day)
-        }
+fn parse_ymd_date(timestamp_str: &str) -> Option<i64> {
+    // Split the input timestamp by the '-' separator
+    let parts: Vec<&str> = timestamp_str.split('-').collect();
+    if parts.len() != 3 {
+        return None; // Ensure the date format has exactly 3 parts (year, month, day)
+    }
 
-        // Parse the year, month, and day
-        let year: i32 = parts[0].parse().ok()?;
-        let month: u32 = parts[1].parse().ok()?;
-        let day: u32 = parts[2].parse().ok()?;
+    let year: i32 = parts[0].parse().ok()?;
+    let month: u32 = parts[1].parse().ok()?;
+    let day: u32 = parts[2].parse().ok()?;
 
-        // Create a NaiveDate for the given year, month, and day
-        if let Some(naive_date) = NaiveDate::from_ymd_opt(year, month, day) {
-            // Set the time to 00:00:00 (midnight)
-            if let Some(naive_datetime) = naive_date.and_hms_opt(0, 0, 0) {
-                // Convert the NaiveDateTime to a UTC timestamp in milliseconds
-                return Some(Utc.from_utc_datetime(&naive_datetime).timestamp_millis());
-            }
+    if let Some(naive_date) = NaiveDate::from_ymd_opt(year, month, day) {
+        // Set the time to 00:00:00 (midnight)
+        if let Some(naive_datetime) = naive_date.and_hms_opt(0, 0, 0) {
+            // Convert the NaiveDateTime to a UTC timestamp in milliseconds
+            return Some(Utc.from_utc_datetime(&naive_datetime).timestamp_millis());
         }
     }
     None
