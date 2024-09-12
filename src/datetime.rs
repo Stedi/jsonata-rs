@@ -172,7 +172,7 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
         // Handle the format '[Yw]' (e.g., 'one thousand, nine hundred and eighty-four')
         "[Yw]" => {
             // Convert the word-based year (e.g., 'one thousand, nine hundred and eighty-four') to a number
-            let year = words_to_number(timestamp_str)?;
+            let year = words_to_number(&timestamp_str.to_lowercase())?;
 
             // Set the date to January 1st of the given year
             let parsed_date = NaiveDate::from_ymd_opt(year, 1, 1)?;
@@ -227,6 +227,39 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
                 return Some(utc_datetime.timestamp_millis());
             }
             None
+        }
+
+        // Handle the format '[Dw] [MNn] [Y0001]' (e.g., 'twenty-seven April 2008')
+        "[Dw] [MNn] [Y0001]" => {
+            // Split the timestamp string into parts (day, month, year)
+            let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
+            if parts.len() != 3 {
+                return None;
+            }
+
+            let day_str = remove_day_suffix(parts[0]);
+
+            // Convert the day word (e.g., 'twenty-seven') into a number
+            let day = words_to_number(&day_str.to_lowercase())? as u32;
+
+            // Convert the month name (e.g., 'April') into its corresponding numeric value
+            let month = month_name_to_int(parts[1])?;
+
+            // Handle the year: try parsing it as a direct number first, then fall back to word-based parsing
+            let year_str = parts[2..].join(" ");
+            let year = match year_str.parse::<i32>() {
+                Ok(num) => num,                               // If it's a numeric year (e.g., '2008')
+                Err(_) => words_to_number(&year_str)? as i32, // If it's word-based (e.g., 'two thousand and seventeen')
+            };
+            println!("year {}", year);
+
+            // Create a NaiveDate from the parsed day, month, and year
+            let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
+            let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+            let datetime = NaiveDateTime::new(parsed_date, time);
+
+            // Return the timestamp in milliseconds
+            Some(Utc.from_utc_datetime(&datetime).timestamp_millis())
         }
 
         // Handle the format '[D1] [M01] [YI]' (e.g., '27 03 MMXVIII')
@@ -434,9 +467,102 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
             None
         }
 
+        // Handle the format '[Dw] [MNn] [Yw]' (e.g., 'twenty-first August two thousand and seventeen')
+        "[Dw] [MNn] [Yw]" => {
+            // Split the timestamp string into parts (day, month, year)
+            let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
+            if parts.len() < 5 {
+                return None;
+            }
+
+            let day_str = parse_day_str(parts[0]);
+
+            // Convert the day word (e.g., 'twenty-first') into a number
+            let day = words_to_number(&day_str.to_lowercase())? as u32;
+
+            // Convert the month name (e.g., 'August') into its corresponding numeric value
+            let month = month_name_to_int(parts[1])?;
+
+            // Combine the remaining parts for the year string (e.g., 'two thousand and seventeen')
+            let year_str = parts[2..].join(" ");
+            let year = words_to_number(&year_str.to_lowercase())? as i32;
+
+            // Create a NaiveDate from the parsed day, month, and year
+            let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
+            let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+            let datetime = NaiveDateTime::new(parsed_date, time);
+
+            // Return the timestamp in milliseconds
+            Some(Utc.from_utc_datetime(&datetime).timestamp_millis())
+        }
+
+        "[DW] [MNn] [Yw]" => {
+            // Split the timestamp string into parts (day, month, year)
+            let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
+            if parts.len() < 5 {
+                return None;
+            }
+
+            let day_str = parse_day_str(parts[0]);
+
+            // Convert the day word (e.g., 'twenty-first') into a number
+            let day = words_to_number(&day_str.to_lowercase())? as u32;
+
+            // Convert the month name (e.g., 'August') into its corresponding numeric value
+            let month = month_name_to_int(parts[1])?;
+
+            // Combine the remaining parts for the year string (e.g., 'two thousand and seventeen')
+            let year_str = parts[2..].join(" ");
+            let year = words_to_number(&year_str.to_lowercase())? as i32;
+
+            // Create a NaiveDate from the parsed day, month, and year
+            let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
+            let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+            let datetime = NaiveDateTime::new(parsed_date, time);
+
+            // Return the timestamp in milliseconds
+            Some(Utc.from_utc_datetime(&datetime).timestamp_millis())
+        }
+
+        // Handle the format '[DW] of [MNn], [Yw]' (e.g., 'Twentieth of August, two thousand and seventeen')
+        "[DW] of [MNn], [Yw]" => {
+            // Normalize the input string: remove "of" and ","
+            let cleaned_str = timestamp_str.replace("of", "").replace(",", "");
+            let parts: Vec<&str> = cleaned_str.split_whitespace().collect();
+            if parts.len() < 5 {
+                return None;
+            }
+
+            let day_str = parts[0]; // Handle the day part (e.g., "Twentieth")
+            let day = words_to_number(&day_str.to_lowercase())? as u32;
+
+            let month = month_name_to_int(parts[1])?; // Handle the month (e.g., "August")
+
+            // Handle the year (e.g., 'two thousand and seventeen')
+            let year_str = parts[2..].join(" ");
+            let year = words_to_number(&year_str.to_lowercase())? as i32;
+
+            // Create a NaiveDate from the parsed day, month, and year
+            let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
+            let time = NaiveTime::from_hms_opt(0, 0, 0)?;
+            let datetime = NaiveDateTime::new(parsed_date, time);
+
+            // Return the timestamp in milliseconds
+            Some(Utc.from_utc_datetime(&datetime).timestamp_millis())
+        }
+
         // Default case: return None if the picture is not recognized
         _ => None,
     }
+}
+
+fn parse_day_str(day_str: &str) -> String {
+    // Split the day string on hyphen, convert to lowercase, and join it back
+    day_str
+        .split('-')
+        .map(|part| part.to_lowercase())
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 fn handle_year_last_two_digits(date: &DateTime<FixedOffset>) -> Result<String, Error> {
@@ -860,6 +986,21 @@ fn alphabetic_to_day(s: &str) -> Option<u32> {
     None
 }
 
+fn remove_day_suffix(day_str: &str) -> String {
+    // Remove specific ordinal suffixes ('st', 'nd', 'rd', 'th') only if they appear at the end of the string
+    if day_str.ends_with("st") {
+        day_str.trim_end_matches("st").to_string()
+    } else if day_str.ends_with("nd") {
+        day_str.trim_end_matches("nd").to_string()
+    } else if day_str.ends_with("rd") {
+        day_str.trim_end_matches("rd").to_string()
+    } else if day_str.ends_with("th") {
+        day_str.trim_end_matches("th").to_string()
+    } else {
+        day_str.to_string() // Return the original string if no ordinal suffix is present
+    }
+}
+
 fn remove_ordinal_suffix(day_str: &str) -> Option<u32> {
     // Remove suffixes like 'st', 'nd', 'rd', 'th' from the day string
     let cleaned_day = day_str.trim_end_matches(|c: char| c.is_alphabetic());
@@ -902,6 +1043,7 @@ fn abbreviated_month_to_int(month_str: &str) -> Option<u32> {
     }
 }
 
+// Split the word string into tokens, handling hyphenated and punctuated numbers
 fn words_to_number(word_str: &str) -> Option<i32> {
     let units = [
         ("zero", 0),
@@ -924,7 +1066,40 @@ fn words_to_number(word_str: &str) -> Option<i32> {
         ("seventeen", 17),
         ("eighteen", 18),
         ("nineteen", 19),
+        // Ordinal units
+        ("first", 1),
+        ("second", 2),
+        ("third", 3),
+        ("fourth", 4),
+        ("fifth", 5),
+        ("sixth", 6),
+        ("seventh", 7),
+        ("eighth", 8),
+        ("ninth", 9),
+        ("tenth", 10),
+        ("eleventh", 11),
+        ("twelfth", 12),
+        ("thirteenth", 13),
+        ("fourteenth", 14),
+        ("fifteenth", 15),
+        ("sixteenth", 16),
+        ("seventeenth", 17),
+        ("eighteenth", 18),
+        ("nineteenth", 19),
+        ("twentieth", 20),
+        ("twenty-first", 21),
+        ("twenty-second", 22),
+        ("twenty-third", 23),
+        ("twenty-fourth", 24),
+        ("twenty-fifth", 25),
+        ("twenty-sixth", 26),
+        ("twenty-seventh", 27),
+        ("twenty-eighth", 28),
+        ("twenty-ninth", 29),
+        ("thirtieth", 30),
+        ("thirty-first", 31),
     ];
+
     let tens = [
         ("twenty", 20),
         ("thirty", 30),
@@ -935,46 +1110,55 @@ fn words_to_number(word_str: &str) -> Option<i32> {
         ("eighty", 80),
         ("ninety", 90),
     ];
+
     let scales = [("hundred", 100), ("thousand", 1000)];
 
     let mut result = 0;
     let mut current = 0;
-    let mut last_ten = None; // Track tens for compound numbers like "eighty-four"
+    let mut last_ten = None;
 
+    // Split the word string into tokens, handling hyphenated and punctuated numbers
     for word in word_str
+        .replace(",", "")
+        .to_lowercase() // Convert the input to lowercase
         .split_whitespace()
-        .filter(|w| *w != "and" && *w != ",")
+        .flat_map(|w| w.split('-'))
     {
-        // Check if it's a unit (e.g., "four")
-        if let Some(&unit) = units.iter().find(|&&(w, _)| w == word).map(|(_, n)| n) {
+        // Skip "and"
+        if word == "and" {
+            continue;
+        }
+
+        // Check if it's a unit or ordinal unit
+        if let Some(unit) = units.iter().find(|&&(w, _)| w == word).map(|(_, n)| n) {
             if let Some(ten) = last_ten {
-                // Combine tens and units (e.g., "eighty" + "four")
-                current += ten + unit; // Combine "eighty" + "four" to get 84
-                last_ten = None; // Reset last_ten after combining
+                current += ten + unit;
+                last_ten = None;
             } else {
                 current += unit;
             }
         }
-        // Check if it's a tens number (e.g., "eighty")
-        else if let Some(&ten) = tens.iter().find(|&&(w, _)| w == word).map(|(_, n)| n) {
-            if last_ten.is_some() {
-                // Handle compound tens (e.g., if another tens was found, apply the previous)
-                current += last_ten.unwrap();
+        // Check if it's a ten or ordinal ten
+        else if let Some(ten) = tens.iter().find(|&&(w, _)| w == word).map(|(_, n)| n) {
+            if let Some(ten_value) = last_ten {
+                current += ten_value + ten;
+            } else {
+                last_ten = Some(ten);
             }
-            last_ten = Some(ten); // Store the tens value to combine with a unit if needed
         }
         // Check if it's a scale (e.g., "hundred", "thousand")
-        else if let Some(&scale) = scales.iter().find(|&&(w, _)| w == word).map(|(_, n)| n) {
-            if scale == 100 {
-                current *= scale; // Multiply by 100 for "hundred"
-            } else {
-                result += current * scale; // Multiply by 1000 for "thousand"
-                current = 0; // Reset current after applying the scale
+        else if let Some(scale) = scales.iter().find(|&&(w, _)| w == word).map(|(_, n)| n) {
+            if *scale == 100 {
+                current *= scale; // multiply current value (e.g., "two hundred")
+            } else if *scale == 1000 {
+                // For "thousand", we add to the result and accumulate the rest
+                result += current * scale; // e.g., "two thousand" -> 2000
+                current = 0; // Reset to accumulate further values (like "seventeen")
             }
         }
     }
 
-    result += current; // Add remaining value to result
+    result += current; // Add the remaining value (e.g., "seventeen")
     Some(result)
 }
 

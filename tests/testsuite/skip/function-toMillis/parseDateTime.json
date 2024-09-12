@@ -7,64 +7,6 @@
     "data": {},
     "result": 1522454400000
   },
-
-  {
-    "function": "#toMillis",
-    "category": "dates/years in words",
-    "description": "should parse year in words",
-    "expr": "$toMillis('one thousand, nine hundred and eighty-four', '[Yw]')",
-    "data": {},
-    "result": 441763200000
-  },
-  {
-    "function": "#toMillis",
-    "category": "dates/years in words",
-    "description": "should parse year in words",
-    "expr": "$toMillis('nineteen hundred and eighty-four', '[Yw]')",
-    "data": {},
-    "result": 441763200000
-  },
-  {
-    "function": "#toMillis",
-    "category": "dates/years in words",
-    "description": "should parse date/month in words",
-    "expr": "$toMillis('twenty-seven April 2008', '[Dw] [MNn] [Y0001]')",
-    "data": {},
-    "result": 1209254400000
-  },
-  {
-    "function": "#toMillis",
-    "category": "dates/years in words",
-    "description": "should parse date/month in ordinal words",
-    "expr": "$toMillis('twenty-seventh April 2008', '[Dw] [MNn] [Y0001]')",
-    "data": {},
-    "result": 1209254400000
-  },
-  {
-    "function": "#toMillis",
-    "category": "dates/years in words",
-    "description": "should parse ordinal date/month/year",
-    "expr": "$toMillis('twenty-first August two thousand and seventeen', '[Dw] [MNn] [Yw]')",
-    "data": {},
-    "result": 1503273600000
-  },
-  {
-    "function": "#toMillis",
-    "category": "dates/years in words",
-    "description": "should parse ordinal date/month/year",
-    "expr": "$toMillis('TWENTY-SECOND August two thousand and seventeen', '[DW] [MNn] [Yw]')",
-    "data": {},
-    "result": 1503360000000
-  },
-  {
-    "function": "#toMillis",
-    "category": "dates/years in words",
-    "description": "should parse ordinal date/month/year",
-    "expr": "$toMillis('Twentieth of August, two thousand and seventeen', '[DW] of [MNn], [Yw]')",
-    "data": {},
-    "result": 1503187200000
-  },
-
   {
     "function": "#toMillis",
     "category": "default unspecified parts",
@@ -81,7 +23,6 @@
     "data": {},
     "result": "13:45:00.000Z"
   },
-
   {
     "function": "#toMillis",
     "category": "default unspecified parts",
