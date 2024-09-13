@@ -928,6 +928,47 @@ pub fn fn_random<'a>(
     Ok(Value::number(context.arena, v))
 }
 
+pub fn fn_now<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 2);
+
+    let now = Utc::now();
+
+    let (picture, timezone) = match args {
+        [picture, timezone] => (picture.as_str(), timezone.as_str()),
+        [picture] => (picture.as_str(), Cow::Borrowed("")),
+        [] => (Cow::Borrowed(""), Cow::Borrowed("")),
+        _ => return Ok(Value::string(context.arena, "")),
+    };
+
+    if picture.is_empty() && timezone.is_empty() {
+        return Ok(Value::string(
+            context.arena,
+            &now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        ));
+    }
+
+    let adjusted_time = if !timezone.is_empty() {
+        parse_timezone_offset(&timezone)
+            .map(|offset| now.with_timezone(&offset))
+            .ok_or_else(|| Error::T0410ArgumentNotValid(2, 1, context.name.to_string()))?
+    } else {
+        now.into()
+    };
+
+    // If a valid picture is provided, format the time accordingly
+    if !picture.is_empty() {
+        // Handle the Result<String, Error> from format_custom_date
+        let formatted_date = format_custom_date(&adjusted_time, &picture)?;
+        return Ok(Value::string(context.arena, &formatted_date));
+    }
+
+    // Return an empty string if the picture is empty but a valid timezone is provided
+    Ok(Value::string(context.arena, ""))
+}
+
 pub fn fn_exists<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],

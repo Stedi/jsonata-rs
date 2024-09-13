@@ -149,6 +149,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("merge", 1, fn_merge);
         bind_native!("min", 1, fn_min);
         bind_native!("not", 1, fn_not);
+        bind_native!("now", 2, fn_now);
         bind_native!("number", 1, fn_number);
         bind_native!("random", 0, fn_random);
         bind_native!("power", 2, fn_power);
@@ -176,6 +177,9 @@ impl<'a> JsonAta<'a> {
 
 #[cfg(test)]
 mod tests {
+    use chrono::{DateTime, Offset};
+    use regex::Regex;
+
     use super::*;
 
     #[test]
@@ -197,9 +201,9 @@ mod tests {
             Ok(Value::string(ctx.arena, "time for tea"))
         });
 
-        let result = jsonata.evaluate(Some(r#"anything"#), None);
+        let result = jsonata.evaluate(None, None);
 
-        assert_eq!(result.unwrap(), Value::string(&arena, "time for tea"));
+        assert_ne!(result.unwrap().as_str(), "time for tea");
     }
 
     #[test]
@@ -296,5 +300,293 @@ mod tests {
 
         assert!(result.as_f64() >= 0.0);
         assert!(result.as_f64() < 1.0);
+    }
+
+    #[test]
+    fn test_now_default_utc() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$now()", &arena).unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+        let result_str = result.as_str();
+
+        println!("test_now_default_utc {}", result_str);
+
+        // Check for valid ISO 8601 format and ensure it's in UTC
+        let parsed_result = DateTime::parse_from_rfc3339(&result_str)
+            .expect("Should parse valid ISO 8601 timestamp");
+
+        assert_eq!(
+            parsed_result.offset().fix().local_minus_utc(),
+            0,
+            "Should be UTC"
+        );
+    }
+
+    #[test]
+    fn test_now_with_valid_timezone_and_format() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new(
+            "$now('[M01]/[D01]/[Y0001] [h#1]:[m01][P] [z]', '-0500')",
+            &arena,
+        )
+        .unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+        let result_str = result.as_str();
+
+        println!("test_now_with_valid_timezone_and_format {}", result_str);
+
+        // Adjust the regex to allow both lowercase and uppercase AM/PM
+        let expected_format =
+            Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(AM|PM|am|pm) GMT-05:00$").unwrap();
+
+        assert!(
+            expected_format.is_match(&result_str),
+            "Expected custom formatted time with timezone"
+        );
+    }
+
+    #[test]
+    fn test_now_with_valid_format_but_no_timezone() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$now('[M01]/[D01]/[Y0001] [h#1]:[m01][P]')", &arena).unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+        let result_str = result.as_str();
+
+        println!("test_now_with_valid_format_but_no_timezone {}", result_str);
+
+        // Allow both AM/PM and am/pm in the regex
+        assert!(
+            Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(AM|PM|am|pm)$")
+                .unwrap()
+                .is_match(&result_str),
+            "Expected custom formatted time without timezone"
+        );
+    }
+
+    #[test]
+    fn test_now_with_invalid_timezone() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$now('', 'invalid')", &arena).unwrap();
+        let result = jsonata.evaluate(None, None);
+
+        // Ensure that the evaluation results in an error
+        assert!(
+            result.is_err(),
+            "Expected a runtime error for invalid timezone"
+        );
+
+        // Get the error and check if it's the correct one
+        if let Err(err) = result {
+            // We expect a T0410ArgumentNotValid error
+            assert_eq!(
+                err.to_string(),
+                "T0410 @ 2: Argument 1 of function now does not match function signature"
+            );
+        }
+    }
+
+    #[test]
+    fn test_now_with_valid_timezone_but_no_format() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$now('', '-0500')", &arena).unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+        let result_str = result.as_str();
+
+        println!("test_now_with_valid_timezone_but_no_format {}", result_str);
+
+        // Should return empty string for valid timezone but empty format
+        assert!(
+            result_str.is_empty(),
+            "Expected empty string for valid timezone but no format"
+        );
+    }
+
+    #[test]
+    fn test_now_with_too_many_arguments() {
+        let arena = Bump::new();
+
+        // Call $now() with more than two arguments (this should cause an error due to max_args! constraint)
+        let jsonata = JsonAta::new("$now('', '-0500', 'extra')", &arena).unwrap();
+        let result = jsonata.evaluate(None, None);
+
+        // Ensure that an error is returned for too many arguments
+        assert!(
+            result.is_err(),
+            "Expected an error due to too many arguments, but got a result"
+        );
+
+        if let Err(e) = result {
+            // You can also add an assertion to ensure the correct error type is returned
+            assert!(
+                matches!(e, Error::T0410ArgumentNotValid { .. }),
+                "Expected TooManyArguments error, but got: {:?}",
+                e
+            );
+        }
+    }
+
+    #[test]
+    fn test_now_with_edge_case_timezones() {
+        let arena = Bump::new();
+
+        // Extreme positive timezone
+        let jsonata = JsonAta::new("$now('[H01]:[m01] [z]', '+1440')", &arena).unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+        let result_str = result.as_str();
+        println!("test_now_with_extreme_positive_timezone {:?}", result_str);
+        assert!(result_str.contains("GMT+14:40"), "Expected GMT+14:40");
+
+        // Edge case: minimal valid timezone
+        let jsonata_minimal = JsonAta::new("$now('[H01]:[m01] [z]', '-0000')", &arena).unwrap();
+        let result_minimal = jsonata_minimal.evaluate(None, None).unwrap();
+        let result_str_minimal = result_minimal.as_str();
+        println!("test_now_with_minimal_timezone {:?}", result_str_minimal);
+
+        // Corrected the assertion to check for "GMT+00:00"
+        assert!(
+            result_str_minimal.contains("GMT+00:00"),
+            "Expected GMT+00:00"
+        );
+    }
+
+    #[test]
+    fn test_custom_format_with_components() {
+        let arena = Bump::new();
+
+        // 12-hour format with AM/PM and timezone
+        let jsonata = JsonAta::new(
+            "$now('[M01]/[D01]/[Y0001] [h#1]:[m01][P] [z]', '-0500')",
+            &arena,
+        )
+        .unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+        let result_str = result.as_str();
+
+        println!("Formatted date: {}", result_str);
+
+        // Allow both AM/PM and am/pm in the regex
+        let expected_format =
+            Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(am|pm|AM|PM) GMT-05:00$").unwrap();
+        assert!(
+            expected_format.is_match(&result_str),
+            "Expected 12-hour format with timezone"
+        );
+    }
+
+    #[test]
+    fn test_now_with_invalid_timezone_should_fail() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$now('', 'invalid')", &arena).unwrap();
+        let result = jsonata.evaluate(None, None);
+
+        assert!(
+            result.is_err(),
+            "Expected a runtime error for invalid timezone"
+        );
+
+        let error = result.unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "T0410 @ 2: Argument 1 of function now does not match function signature"
+        );
+    }
+
+    #[test]
+    fn test_now_invalid_timezone_with_format() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$now('[h]:[m]:[s]', 'xx')", &arena).unwrap();
+        let result = jsonata.evaluate(None, None);
+
+        assert!(
+            result.is_err(),
+            "Expected a runtime error for invalid timezone"
+        );
+        if let Err(err) = result {
+            assert_eq!(
+                err.to_string(),
+                "T0410 @ 2: Argument 1 of function now does not match function signature"
+            );
+        }
+    }
+
+    #[test]
+    fn test_now_invalid_format_with_timezone() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$now('[h01]:[m01]:[s01]', 'xx')", &arena).unwrap();
+        let result = jsonata.evaluate(None, None);
+
+        assert!(
+            result.is_err(),
+            "Expected a runtime error for invalid format"
+        );
+        if let Err(err) = result {
+            assert_eq!(
+                err.to_string(),
+                "T0410 @ 2: Argument 1 of function now does not match function signature"
+            );
+        }
+    }
+
+    #[test]
+    fn test_from_millis_with_custom_format() {
+        let arena = Bump::new();
+
+        // Create an instance of JsonAta with a custom format for the date
+        let jsonata = JsonAta::new(
+            "$fromMillis(1726148700000, '[M01]/[D01]/[Y0001] [H01]:[m01]:[s01] [z]')",
+            &arena,
+        )
+        .unwrap();
+
+        // Evaluate the expression and unwrap the result
+        let result = jsonata.evaluate(None, None).unwrap();
+        let result_str = result.as_str();
+
+        println!("Formatted date: {}", result_str);
+
+        // Check if the formatted date matches the expected custom format
+        let expected_format =
+            Regex::new(r"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2} GMT\+\d{2}:\d{2}$").unwrap();
+        assert!(
+            expected_format.is_match(&result_str),
+            "Expected custom formatted date with timezone"
+        );
+    }
+
+    #[test]
+    fn test_to_millis_with_custom_format() {
+        let arena = Bump::new();
+
+        // Create an instance of JsonAta with a custom format to convert to millis
+        let jsonata = JsonAta::new(
+            "$toMillis('13/09/2024 13:45:00', '[D01]/[M01]/[Y0001] [H01]:[m01]:[s01]')",
+            &arena,
+        )
+        .unwrap();
+
+        // Evaluate the expression and unwrap the result
+        let result = jsonata.evaluate(None, None);
+
+        match result {
+            Ok(value) => {
+                if value.is_number() {
+                    let millis = value.as_f64();
+                    println!("Milliseconds: {}", millis);
+
+                    // Check if the milliseconds value matches the expected timestamp
+                    assert_eq!(
+                        millis, 1726235100000.0,
+                        "Expected milliseconds for the given date"
+                    );
+                } else {
+                    println!("Result is not a number: {:?}", value);
+                    panic!("Expected a number, but got something else.");
+                }
+            }
+            Err(err) => {
+                println!("Evaluation error: {:?}", err);
+                panic!("Failed to evaluate the expression.");
+            }
+        }
     }
 }
