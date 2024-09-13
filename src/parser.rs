@@ -1,4 +1,5 @@
 pub mod ast;
+pub mod expressions;
 mod process;
 mod symbol;
 mod tokenizer;

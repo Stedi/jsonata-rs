@@ -1,8 +1,11 @@
 use base64::Engine;
-use chrono::{DateTime, FixedOffset, Utc};
+use chrono::{TimeZone, Utc};
 use rand::Rng;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
+
+use crate::datetime::{format_custom_date, parse_custom_format, parse_timezone_offset};
+use crate::parser::expressions::check_balanced_brackets;
 
 use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
@@ -419,6 +422,60 @@ pub fn fn_string<'a>(
         let serializer = Serializer::new(DumpFormatter, true);
         let output = serializer.serialize(input)?;
         Ok(Value::string(context.arena, &output))
+    }
+}
+
+pub fn fn_substring_before<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    let string = args.first().copied().unwrap_or_else(Value::undefined);
+
+    let chars = args.get(1).copied().unwrap_or_else(Value::undefined);
+
+    if !string.is_string() {
+        return Ok(Value::undefined());
+    }
+
+    if !chars.is_string() {
+        return Err(Error::D3010EmptyPattern(context.char_index));
+    }
+
+    let string: &str = &string.as_str();
+    let chars: &str = &chars.as_str();
+
+    if let Some(index) = string.find(chars) {
+        Ok(Value::string(context.arena, &string[..index]))
+    } else {
+        Ok(Value::string(context.arena, string))
+    }
+}
+
+pub fn fn_substring_after<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    let string = args.first().copied().unwrap_or_else(Value::undefined);
+
+    let chars = args.get(1).copied().unwrap_or_else(Value::undefined);
+
+    if !string.is_string() {
+        return Ok(Value::undefined());
+    }
+
+    if !chars.is_string() {
+        return Err(Error::D3010EmptyPattern(context.char_index));
+    }
+
+    let string: &str = &string.as_str();
+    let chars: &str = &chars.as_str();
+
+    if let Some(index) = string.find(chars) {
+        let after_index = index + chars.len();
+        Ok(Value::string(context.arena, &string[after_index..]))
+    } else {
+        // Return the original string if 'chars' is not found
+        Ok(Value::string(context.arena, string))
     }
 }
 
@@ -884,7 +941,7 @@ pub fn fn_now<'a>(
         [picture, timezone] => (picture.as_str(), timezone.as_str()),
         [picture] => (picture.as_str(), Cow::Borrowed("")),
         [] => (Cow::Borrowed(""), Cow::Borrowed("")),
-        &[..] => return Ok(Value::string(context.arena, "")),
+        _ => return Ok(Value::string(context.arena, "")),
     };
 
     // Handle the default case (no picture, no timezone) -> return ISO 8601 timestamp in UTC
@@ -900,66 +957,19 @@ pub fn fn_now<'a>(
         parse_timezone_offset(&timezone)
             .map(|offset| now.with_timezone(&offset))
             .ok_or_else(|| Error::T0410ArgumentNotValid(2, 1, context.name.to_string()))?
-        // Ensure this references the correct variant
     } else {
         now.into() // Use UTC if no timezone provided
     };
 
     // If a valid picture is provided, format the time accordingly
     if !picture.is_empty() {
-        return Ok(Value::string(
-            context.arena,
-            &format_custom_date(&adjusted_time, &picture),
-        ));
+        // Handle the Result<String, Error> from format_custom_date
+        let formatted_date = format_custom_date(&adjusted_time, &picture)?;
+        return Ok(Value::string(context.arena, &formatted_date));
     }
 
     // Return an empty string if the picture is empty but a valid timezone is provided
     Ok(Value::string(context.arena, ""))
-}
-
-// Custom formatting function to handle a dynamic set of 'picture' strings
-fn format_custom_date(date: &DateTime<FixedOffset>, picture: &str) -> String {
-    let mut formatted_string = String::new();
-    let components = picture.split(&['[', ']'][..]); // Use array of char for splitting
-
-    for component in components {
-        // Use for loop instead of while let
-        match component {
-            "H01" => formatted_string.push_str(&date.format("%H").to_string()), // 24-hour format
-            "m01" => formatted_string.push_str(&date.format("%M").to_string()), // Minutes
-            "s01" => formatted_string.push_str(&date.format("%S").to_string()), // Seconds
-            "h#1" => formatted_string.push_str(&date.format("%-I").to_string()), // 12-hour format
-            "P" => formatted_string.push_str(&date.format("%p").to_string()),   // AM/PM
-            "z" => formatted_string.push_str(&date.format("GMT%:z").to_string()), // Timezone
-            "M01" => formatted_string.push_str(&date.format("%m").to_string()), // Month
-            "D01" => formatted_string.push_str(&date.format("%d").to_string()), // Day
-            "Y0001" => formatted_string.push_str(&date.format("%Y").to_string()), // Year
-            "W01" => formatted_string.push_str(&date.format("%A").to_string()), // Day of the week
-            "MN1" => formatted_string.push_str(&date.format("%B").to_string()), // Full month name
-            _ => formatted_string.push_str(component), // Handle any literal characters or separators
-        }
-    }
-
-    formatted_string
-}
-
-// Helper function to parse a timezone string in the format "±HHMM"
-fn parse_timezone_offset(timezone: &str) -> Option<FixedOffset> {
-    if timezone.len() != 5 {
-        return None;
-    }
-
-    let (hours, minutes) = (
-        timezone[1..3].parse::<i32>().ok()?,
-        timezone[3..5].parse::<i32>().ok()?,
-    );
-    let total_offset_seconds = (hours * 3600) + (minutes * 60);
-
-    match &timezone[0..1] {
-        "+" => FixedOffset::east_opt(total_offset_seconds),
-        "-" => FixedOffset::west_opt(total_offset_seconds),
-        _ => None,
-    }
 }
 
 pub fn fn_exists<'a>(
@@ -974,6 +984,118 @@ pub fn fn_exists<'a>(
     match arg {
         Value::Undefined => Ok(Value::bool(false)),
         _ => Ok(Value::bool(true)),
+    }
+}
+
+pub fn from_millis<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    let arr = args.first().copied().unwrap_or_else(Value::undefined);
+
+    if arr.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    max_args!(context, args, 3);
+
+    // Extract the milliseconds argument
+    let millis = args[0].as_f64() as i64;
+
+    // Convert milliseconds to DateTime using `timestamp_millis_opt`
+    let timestamp = Utc
+        .timestamp_millis_opt(millis)
+        .single()
+        .ok_or_else(|| Error::T0410ArgumentNotValid(0, 1, context.name.to_string()))?;
+
+    // Extract the optional picture and timezone arguments
+    let (picture, timezone) = match args {
+        [_, picture, timezone] => (
+            if picture.is_string() {
+                picture.as_str()
+            } else {
+                Cow::Borrowed("") // Treat non-strings (like ()) as empty strings
+            },
+            timezone.as_str(),
+        ),
+        [_, picture] => (
+            if picture.is_string() {
+                picture.as_str()
+            } else {
+                Cow::Borrowed("")
+            },
+            Cow::Borrowed(""),
+        ),
+        _ => (Cow::Borrowed(""), Cow::Borrowed("")),
+    };
+
+    // Handle default case: ISO 8601 format in UTC
+    if picture.is_empty() && timezone.is_empty() {
+        return Ok(Value::string(
+            context.arena,
+            &timestamp.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        ));
+    }
+
+    // Check for balanced brackets in the picture string
+    if let Err(err) = check_balanced_brackets(&picture) {
+        return Err(Error::D3135PictureStringNoClosingBracketError(err));
+    }
+
+    // Adjust timezone if provided
+    let adjusted_time = if !timezone.is_empty() {
+        parse_timezone_offset(&timezone)
+            .map(|offset| timestamp.with_timezone(&offset))
+            .ok_or_else(|| Error::T0410ArgumentNotValid(0, 1, context.name.to_string()))?
+    } else {
+        timestamp.into()
+    };
+
+    // If a picture is provided, format the timestamp accordingly
+    if !picture.is_empty() {
+        // Call format_custom_date and handle its result
+        let formatted_result = format_custom_date(&adjusted_time, &picture)?;
+
+        return Ok(Value::string(context.arena, &formatted_result));
+    }
+
+    // Return ISO 8601 if only timezone is provided
+    Ok(Value::string(
+        context.arena,
+        &adjusted_time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+    ))
+}
+
+pub fn to_millis<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    let arr = args.first().copied().unwrap_or_else(Value::undefined);
+
+    // If the input is undefined, return undefined
+    if arr.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    // Ensure at most two arguments
+    max_args!(context, args, 2);
+
+    // Extract the timestamp string
+    let timestamp_str = args[0].as_str();
+    if timestamp_str.is_empty() {
+        return Ok(Value::undefined());
+    }
+
+    // Extract the optional picture string
+    let picture = match args {
+        [_, picture] => picture.as_str(),
+        _ => Cow::Borrowed(""),
+    };
+
+    // Handle different formats using a match handler function
+    match parse_custom_format(&timestamp_str, &picture) {
+        Some(millis) => Ok(Value::number(context.arena, millis as f64)),
+        None => Ok(Value::undefined()),
     }
 }
 
