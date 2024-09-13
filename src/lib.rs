@@ -524,4 +524,67 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_from_millis_with_custom_format() {
+        let arena = Bump::new();
+
+        // Create an instance of JsonAta with a custom format for the date
+        let jsonata = JsonAta::new(
+            "$fromMillis(1726148700000, '[M01]/[D01]/[Y0001] [H01]:[m01]:[s01] [z]')",
+            &arena,
+        )
+        .unwrap();
+
+        // Evaluate the expression and unwrap the result
+        let result = jsonata.evaluate(None, None).unwrap();
+        let result_str = result.as_str();
+
+        println!("Formatted date: {}", result_str);
+
+        // Check if the formatted date matches the expected custom format
+        let expected_format =
+            Regex::new(r"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2} GMT\+\d{2}:\d{2}$").unwrap();
+        assert!(
+            expected_format.is_match(&result_str),
+            "Expected custom formatted date with timezone"
+        );
+    }
+
+    #[test]
+    fn test_to_millis_with_custom_format() {
+        let arena = Bump::new();
+
+        // Create an instance of JsonAta with a custom format to convert to millis
+        let jsonata = JsonAta::new(
+            "$toMillis('13/09/2024 13:45:00', '[D01]/[M01]/[Y0001] [H01]:[m01]:[s01]')",
+            &arena,
+        )
+        .unwrap();
+
+        // Evaluate the expression and unwrap the result
+        let result = jsonata.evaluate(None, None);
+
+        match result {
+            Ok(value) => {
+                if value.is_number() {
+                    let millis = value.as_f64();
+                    println!("Milliseconds: {}", millis);
+
+                    // Check if the milliseconds value matches the expected timestamp
+                    assert_eq!(
+                        millis, 1726235100000.0,
+                        "Expected milliseconds for the given date"
+                    );
+                } else {
+                    println!("Result is not a number: {:?}", value);
+                    panic!("Expected a number, but got something else.");
+                }
+            }
+            Err(err) => {
+                println!("Evaluation error: {:?}", err);
+                panic!("Failed to evaluate the expression.");
+            }
+        }
+    }
 }

@@ -439,6 +439,49 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
             None
         }
 
+        // Handle the format '[D01]/[M01]/[Y0001] [H01]:[m01]:[s01]' (e.g., '13/09/2024 13:45:00')
+        "[D01]/[M01]/[Y0001] [H01]:[m01]:[s01]" => {
+            // Split the input timestamp into date and time parts
+            let parts: Vec<&str> = timestamp_str.split_whitespace().collect();
+            if parts.len() != 2 {
+                return None;
+            }
+
+            let date_part = parts[0];
+            let time_part = parts[1];
+
+            // Split the date part into day, month, and year
+            let date_elements: Vec<&str> = date_part.split('/').collect();
+            if date_elements.len() != 3 {
+                return None;
+            }
+
+            let day = date_elements[0].parse::<u32>().ok()?;
+            let month = date_elements[1].parse::<u32>().ok()?;
+            let year = date_elements[2].parse::<i32>().ok()?;
+
+            // Split the time part into hours, minutes, and seconds
+            let time_elements: Vec<&str> = time_part.split(':').collect();
+            if time_elements.len() != 3 {
+                return None;
+            }
+
+            let hour = time_elements[0].parse::<u32>().ok()?;
+            let minute = time_elements[1].parse::<u32>().ok()?;
+            let second = time_elements[2].parse::<u32>().ok()?;
+
+            // Construct NaiveDate and NaiveTime objects from the parsed values
+            let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
+            let parsed_time = NaiveTime::from_hms_opt(hour, minute, second)?;
+            let datetime = NaiveDateTime::new(parsed_date, parsed_time);
+
+            // Convert NaiveDateTime to UTC using TimeZone::from_utc_datetime
+            let utc_datetime: DateTime<Utc> = Utc.from_utc_datetime(&datetime);
+
+            // Return the milliseconds since Unix epoch for the UTC datetime
+            Some(utc_datetime.timestamp_millis())
+        }
+
         // Handle ISO 8601-like formats with custom pattern handling
         "[Y0001]-[M01]-[D01]" => {
             if let Ok(parsed_date) = NaiveDate::parse_from_str(timestamp_str, "%Y-%m-%d") {
