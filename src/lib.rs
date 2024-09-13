@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use bumpalo::Bump;
 
+mod datetime;
 mod errors;
 mod evaluator;
 mod parser;
@@ -134,6 +135,8 @@ impl<'a> JsonAta<'a> {
         bind_native!("each", 2, fn_each);
         bind_native!("error", 1, fn_error);
         bind_native!("exists", 1, fn_exists);
+        bind_native!("fromMillis", 3, from_millis);
+        bind_native!("toMillis", 2, to_millis);
         bind_native!("filter", 2, fn_filter);
         bind_native!("floor", 1, fn_floor);
         bind_native!("join", 2, fn_join);
@@ -157,6 +160,8 @@ impl<'a> JsonAta<'a> {
         bind_native!("sqrt", 1, fn_sqrt);
         bind_native!("string", 1, fn_string);
         bind_native!("substring", 3, fn_substring);
+        bind_native!("substringBefore", 2, fn_substring_before);
+        bind_native!("substringAfter", 2, fn_substring_after);
         bind_native!("sum", 1, fn_sum);
         bind_native!("trim", 1, fn_trim);
         bind_native!("uppercase", 1, fn_uppercase);
