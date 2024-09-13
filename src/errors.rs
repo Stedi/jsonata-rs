@@ -38,9 +38,9 @@ pub enum Error {
     D3070InvalidDefaultSort(usize),
     D3141Assert(String),
     D3137Error(String),
-    D3133Error(String),
-    D3134Error(String),
-    D3135Error(String),
+    D3133PictureStringNameModifierError(String),
+    D3134TooManyTzDigits(String),
+    D3135PictureStringNoClosingBracketError(String),
 
     // Type errors
     T0410ArgumentNotValid(usize, usize, String),
@@ -119,11 +119,11 @@ impl Error {
             Error::D3060SqrtNegative(..) => "D3060",
             Error::D3061PowUnrepresentable(..) => "D3061",
             Error::D3070InvalidDefaultSort(..) => "D3070",
+            Error::D3133PictureStringNameModifierError(..) => "D3133",
+            Error::D3134TooManyTzDigits(..) => "D3134",
+            Error::D3135PictureStringNoClosingBracketError(..) => "D3135",
             Error::D3141Assert(..) => "D3141",
             Error::D3137Error(..) => "D3137",
-            Error::D3133Error(..) => "D3133",
-            Error::D3134Error(..) => "D3134",
-            Error::D3135Error(..) => "D3135",
 
             // Type errors
             Error::T0410ArgumentNotValid(..) => "T0410",
@@ -222,16 +222,16 @@ impl fmt::Display for Error {
                 write!(f, "{}: The power function has resulted in a value that cannot be represented as a JSON number: base={}, exponent={}", p, b, e),
             D3070InvalidDefaultSort(ref p) =>
                 write!(f, "{}: The single argument form of the sort function can only be applied to an array of strings or an array of numbers.  Use the second argument to specify a comparison function", p),
+            D3133PictureStringNameModifierError(ref m) =>
+                write!(f, "{}: The 'name' modifier can only be applied to months and days in the date/time picture string, not Y", m),
+            D3134TooManyTzDigits(ref m) =>
+                write!(f, "{}: The timezone integer format specifier cannot have more than four digits", m),
+            D3135PictureStringNoClosingBracketError(ref m) =>
+                write!(f, "{}: No matching closing bracket ']' in date/time picture string", m),
             D3141Assert(ref m) =>
                 write!(f, "{}", m),
             D3137Error(ref m) =>
                 write!(f, "{}", m),
-            D3133Error(ref m) =>
-                write!(f, "{}: The 'name' modifier can only be applied to months and days in the date/time picture string, not Y", m),
-            D3134Error(ref m) =>
-                write!(f, "{}: The timezone integer format specifier cannot have more than four digits", m),
-            D3135Error(ref m) =>
-                write!(f, "{}: No matching closing bracket ']' in date/time picture string", m),
             // Type errors
             T0410ArgumentNotValid(ref p, ref i, ref t) =>
                 write!(f, "{}: Argument {} of function {} does not match function signature", p, i, t),

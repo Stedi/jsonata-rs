@@ -94,9 +94,11 @@ fn handle_pattern(pattern: &str, date: &DateTime<FixedOffset>) -> Result<String,
         "Z" => Ok(date.format("%:z").to_string()),
         "z" => Ok(format!("GMT{}", date.format("%:z"))),
         "Z0" => Ok(handle_trimmed_timezone(date)),
-        "Z010101t" => {
+        s if s.starts_with('Z') && s.chars().filter(|c| c.is_ascii_digit()).count() > 4 => {
             // Handle specific case where more than four digits were used erroneously
-            Err(Error::D3134Error("Invalid timezone format".to_string()))
+            Err(Error::D3134TooManyTzDigits(
+                "Invalid datetime picture string".to_string(),
+            ))
         }
         "m01" => Ok(date.format("%M").to_string()), // Minutes with leading zero
         "s01" => Ok(date.format("%S").to_string()), // Seconds with leading zero
@@ -113,14 +115,18 @@ fn handle_pattern(pattern: &str, date: &DateTime<FixedOffset>) -> Result<String,
         "MNn" => Ok(date.format("%B").to_string()),
         "MNn,3-3" => Ok(date.format("%B").to_string()[..3].to_string()),
         "MN" => Ok(date.format("%B").to_string().to_uppercase()),
-        "YN" => Err(Error::D3133Error("Invalid timezone format".to_string())),
+        "YN" => Err(Error::D3133PictureStringNameModifierError(
+            "Invalid datetime picture string".to_string(),
+        )),
         "Yw" => Ok(to_year_in_words(date.year())),
         "E" => Ok("ISO".to_string()),
         "F" => Ok(date.format("%A").to_string().to_lowercase()),
         "D" => Ok(date.format("%-d").to_string()),
         "M" => Ok(date.format("%-m").to_string()),
         "C" => Ok("ISO".to_string()),
-        _ => Ok(format!("[{}]", pattern)), // Treat unrecognized pattern as literal
+        s => Err(Error::D3137Error(format!(
+            "Unsupported datetime picture string: {s}"
+        ))),
     }
 }
 
@@ -565,7 +571,7 @@ fn map_month_to_letter(month: u32) -> String {
 }
 
 fn calculate_total_days_in_year(date: &DateTime<FixedOffset>) -> String {
-    let total_days = if date.year() % 4 == 0 && (date.year() % 100 != 0 || date.year() % 400 == 0) {
+    let total_days = if date.date_naive().leap_year() {
         366 // Leap year
     } else {
         365 // Regular year
@@ -668,7 +674,9 @@ fn handle_timezone(date: &DateTime<FixedOffset>, pattern: &str) -> Result<String
                 Ok(format!("{:+03}{:02}", hours, minutes)) // Format as '+0100' or '-0500' without colon
             }
         }
-        _ => Err(Error::D3134Error("Invalid timezone format".to_string())),
+        _ => Err(Error::D3134TooManyTzDigits(
+            "Invalid timezone format".to_string(),
+        )),
     }
 }
 

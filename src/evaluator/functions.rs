@@ -995,7 +995,7 @@ pub fn from_millis<'a>(
 
     // Check for balanced brackets in the picture string
     if let Err(err) = check_balanced_brackets(&picture) {
-        return Err(Error::D3135Error(err));
+        return Err(Error::D3135PictureStringNoClosingBracketError(err));
     }
 
     // Adjust timezone if provided
