@@ -936,7 +936,6 @@ pub fn fn_now<'a>(
 
     let now = Utc::now();
 
-    // Use pattern matching to extract picture and timezone
     let (picture, timezone) = match args {
         [picture, timezone] => (picture.as_str(), timezone.as_str()),
         [picture] => (picture.as_str(), Cow::Borrowed("")),
@@ -944,7 +943,6 @@ pub fn fn_now<'a>(
         _ => return Ok(Value::string(context.arena, "")),
     };
 
-    // Handle the default case (no picture, no timezone) -> return ISO 8601 timestamp in UTC
     if picture.is_empty() && timezone.is_empty() {
         return Ok(Value::string(
             context.arena,
@@ -952,13 +950,12 @@ pub fn fn_now<'a>(
         ));
     }
 
-    // Adjust the time for the given timezone if provided
     let adjusted_time = if !timezone.is_empty() {
         parse_timezone_offset(&timezone)
             .map(|offset| now.with_timezone(&offset))
             .ok_or_else(|| Error::T0410ArgumentNotValid(2, 1, context.name.to_string()))?
     } else {
-        now.into() // Use UTC if no timezone provided
+        now.into()
     };
 
     // If a valid picture is provided, format the time accordingly
