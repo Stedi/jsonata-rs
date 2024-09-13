@@ -938,7 +938,7 @@ pub fn roman_month_to_int(month_str: &str) -> Option<u32> {
         "VI" | "F" => Some(6),   // June (VI or F for abbreviated June)
         "VII" | "G" => Some(7),  // July (VII or G for abbreviated July)
         "VIII" | "H" => Some(8), // August (VIII or H for abbreviated August)
-        "IX" => Some(9),         // September (IX or I for abbreviated September)
+        "IX" => Some(9),         // September (IX for abbreviated September)
         "X" | "J" => Some(10),   // October (X or J for abbreviated October)
         "XI" | "K" => Some(11),  // November (XI or K for abbreviated November)
         "XII" | "L" => Some(12), // December (XII or L for abbreviated December)
@@ -968,7 +968,6 @@ fn alphabetic_to_day(s: &str) -> Option<u32> {
 }
 
 fn remove_day_suffix(day_str: &str) -> String {
-    // Remove specific ordinal suffixes ('st', 'nd', 'rd', 'th') only if they appear at the end of the string
     if day_str.ends_with("st") {
         day_str.trim_end_matches("st").to_string()
     } else if day_str.ends_with("nd") {
@@ -978,12 +977,11 @@ fn remove_day_suffix(day_str: &str) -> String {
     } else if day_str.ends_with("th") {
         day_str.trim_end_matches("th").to_string()
     } else {
-        day_str.to_string() // Return the original string if no ordinal suffix is present
+        day_str.to_string()
     }
 }
 
 fn remove_ordinal_suffix(day_str: &str) -> Option<u32> {
-    // Remove suffixes like 'st', 'nd', 'rd', 'th' from the day string
     let cleaned_day = day_str.trim_end_matches(|c: char| c.is_alphabetic());
     cleaned_day.parse::<u32>().ok()
 }
@@ -1098,14 +1096,12 @@ fn words_to_number(word_str: &str) -> Option<i32> {
     let mut current = 0;
     let mut last_ten = None;
 
-    // Split the word string into tokens, handling hyphenated and punctuated numbers
     for word in word_str
         .replace(",", "")
         .to_lowercase() // Convert the input to lowercase
         .split_whitespace()
         .flat_map(|w| w.split('-'))
     {
-        // Skip "and"
         if word == "and" {
             continue;
         }
@@ -1130,16 +1126,15 @@ fn words_to_number(word_str: &str) -> Option<i32> {
         // Check if it's a scale (e.g., "hundred", "thousand")
         else if let Some(scale) = scales.iter().find(|&&(w, _)| w == word).map(|(_, n)| n) {
             if *scale == 100 {
-                current *= scale; // multiply current value (e.g., "two hundred")
+                current *= scale;
             } else if *scale == 1000 {
-                // For "thousand", we add to the result and accumulate the rest
                 result += current * scale; // e.g., "two thousand" -> 2000
                 current = 0; // Reset to accumulate further values (like "seventeen")
             }
         }
     }
 
-    result += current; // Add the remaining value (e.g., "seventeen")
+    result += current;
     Some(result)
 }
 
@@ -1182,7 +1177,6 @@ fn parse_custom_date(date_str: &str) -> Option<NaiveDateTime> {
         return None;
     }
 
-    // Construct NaiveDateTime from the parsed date and time parts
     let date = NaiveDate::from_ymd_opt(year, month, day)?;
     let time = NaiveTime::from_hms_opt(hour, minute, 0)?;
     Some(NaiveDateTime::new(date, time))
@@ -1248,7 +1242,6 @@ fn parse_custom_date_with_weekday(date_str: &str) -> Option<NaiveDateTime> {
     // Parse the year (e.g., "2018")
     let year: i32 = parts[3].parse().ok()?;
 
-    // Construct the NaiveDateTime from the parsed values
     let date = NaiveDate::from_ymd_opt(year, month, day)?;
     let time = NaiveTime::from_hms_opt(0, 0, 0)?;
     Some(NaiveDateTime::new(date, time))
@@ -1289,7 +1282,6 @@ fn parse_custom_date_with_weekday_and_ordinal(date_str: &str) -> Option<NaiveDat
     // Parse the year (e.g., "2018")
     let year: i32 = parts[3].parse().ok()?;
 
-    // Construct the NaiveDateTime from the parsed values
     let date = NaiveDate::from_ymd_opt(year, month, day)?;
     let time = NaiveTime::from_hms_opt(0, 0, 0)?;
     Some(NaiveDateTime::new(date, time))
@@ -1313,7 +1305,6 @@ fn parse_ordinal_day_of_year(date_str: &str) -> Option<NaiveDateTime> {
     // Parse the year (e.g., "2018")
     let year: i32 = parts.last()?.parse().ok()?;
 
-    // Construct the NaiveDate using the day of the year
     let parsed_date = NaiveDate::from_yo_opt(year, day_of_year)?;
     let time = NaiveTime::from_hms_opt(0, 0, 0)?;
     Some(NaiveDateTime::new(parsed_date, time))
@@ -1340,14 +1331,11 @@ fn parse_ordinal_date_with_dashes(date_str: &str) -> Option<NaiveDateTime> {
     // Use 00:00:00 for the time portion
     let time = NaiveTime::from_hms_opt(0, 0, 0)?;
 
-    // Combine the date and time into NaiveDateTime
     Some(NaiveDateTime::new(date, time))
 }
 
 fn parse_iso8601_date(date_str: &str) -> Option<i64> {
-    // Attempt to parse the ISO 8601 formatted string
     if let Ok(datetime) = DateTime::parse_from_rfc3339(date_str) {
-        // Convert the parsed datetime to milliseconds since the Unix Epoch
         Some(datetime.timestamp_millis())
     } else {
         None
@@ -1362,7 +1350,6 @@ fn parse_iso8601_with_timezone(date_str: &str) -> Option<i64> {
         date_str.to_string()
     };
 
-    // Attempt to parse the normalized ISO 8601 formatted string
     if let Ok(datetime) = DateTime::parse_from_rfc3339(&normalized_str) {
         // Convert the parsed datetime to milliseconds since the Unix Epoch
         Some(datetime.timestamp_millis())
@@ -1387,7 +1374,6 @@ fn parse_year_only(date_str: &str) -> Option<i64> {
         if let Some(naive_date) = NaiveDate::from_ymd_opt(year, 1, 1) {
             // Set the time to 00:00:00
             if let Some(naive_datetime) = naive_date.and_hms_opt(0, 0, 0) {
-                // Convert the NaiveDateTime to a UTC timestamp in milliseconds
                 return Some(Utc.from_utc_datetime(&naive_datetime).timestamp_millis());
             }
         }
@@ -1409,7 +1395,6 @@ fn parse_ymd_date(timestamp_str: &str) -> Option<i64> {
     if let Some(naive_date) = NaiveDate::from_ymd_opt(year, month, day) {
         // Set the time to 00:00:00 (midnight)
         if let Some(naive_datetime) = naive_date.and_hms_opt(0, 0, 0) {
-            // Convert the NaiveDateTime to a UTC timestamp in milliseconds
             return Some(Utc.from_utc_datetime(&naive_datetime).timestamp_millis());
         }
     }
