@@ -1449,6 +1449,71 @@ pub fn fn_round<'a>(
     Ok(Value::number(context.arena, num))
 }
 
+pub fn fn_reduce<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    // Ensure at least two arguments: value/array and function
+    if args.len() < 2 {
+        return Err(Error::T0410ArgumentNotValid(0, 2, context.name.to_string()));
+    }
+
+    let first_arg = args[0];
+    let func = args[1];
+    let init = args.get(2).copied();
+
+    // If the first argument is not an array, treat it as a scalar value
+    // and return it directly, including the empty string
+    if !first_arg.is_array() {
+        if first_arg.is_string() {
+            return Ok(first_arg); // Handle empty string case and other string values
+        } else {
+            return Ok(first_arg); // Handle other scalar values like 42
+        }
+    }
+
+    // Handle array case
+    let (elements, _extra_field) = match first_arg {
+        Value::Array(elems, extra) => (elems, extra),
+        _ => return Err(Error::T0410ArgumentNotValid(0, 1, context.name.to_string())),
+    };
+
+    // If the array is empty, return the initial value if provided, otherwise `undefined`
+    if elements.is_empty() {
+        return Ok(init.unwrap_or_else(|| Value::undefined()));
+    }
+
+    // Check if the second argument is a valid function
+    if !func.is_function() {
+        return Err(Error::T0410ArgumentNotValid(1, 1, context.name.to_string()));
+    }
+
+    // Initialize the accumulator based on the presence of the init argument
+    let mut accumulator = init.unwrap_or_else(|| elements[0]);
+
+    // Start iterating from the second element if no init is provided
+    let start_index = if init.is_some() { 0 } else { 1 };
+
+    for (index, value) in elements.iter().enumerate().skip(start_index) {
+        let index_value = Value::number(context.arena, index as f64);
+
+        // Validate if the types of `accumulator` and `value` are compatible with the operation
+        if accumulator.is_string() && value.is_string() {
+            // Proceed with string concatenation logic if both are strings
+        } else if !accumulator.is_number() || !value.is_number() {
+            // Throw an error if trying to add non-numeric values
+            return Err(Error::T0410ArgumentNotValid(1, 1, context.name.to_string()));
+        }
+
+        let args_to_pass = vec![accumulator, value, index_value, first_arg];
+
+        // Use evaluate_function to call the function with the arguments
+        accumulator = context.evaluate_function(func, &args_to_pass)?;
+    }
+
+    Ok(accumulator)
+}
+
 // We need to do this multiplication by powers of 10 in a string to avoid
 // floating point precision errors which will affect the rounding algorithm
 fn multiply_by_pow10(num: f64, pow: isize) -> Result<f64> {
