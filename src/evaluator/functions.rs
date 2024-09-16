@@ -1466,9 +1466,8 @@ pub fn fn_reduce<'a>(
     if !first_arg.is_array() {
         if first_arg.is_string() {
             return Ok(first_arg);
-        } else {
-            return Ok(first_arg);
         }
+        return Ok(first_arg);
     }
 
     let (elements, _extra_field) = match first_arg {
