@@ -218,7 +218,7 @@ impl fmt::Display for Error {
                 write!(f, "{}: Third argument of split function must evaluate to a positive number", p),
             D3030NonNumericCast(ref p, ref n) =>
                 write!(f, "{}: Unable to cast value to a number: {}", p, n),
-            D3050SecondArguement(ref p) => 
+            D3050SecondArguement(ref p) =>
                 write!(f, "{}: The second argument of reduce function must be a function with at least two arguments", p),
             D3060SqrtNegative(ref p, ref n) =>
                 write!(f, "{}: The sqrt function cannot be applied to a negative number: {}", p, n),
