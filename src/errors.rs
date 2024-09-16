@@ -33,6 +33,7 @@ pub enum Error {
     D3011NegativeLimit(usize),
     D3020NegativeLimit(usize),
     D3030NonNumericCast(usize, String),
+    D3050SecondArguement(String),
     D3060SqrtNegative(usize, String),
     D3061PowUnrepresentable(usize, String, String),
     D3070InvalidDefaultSort(usize),
@@ -116,6 +117,7 @@ impl Error {
             Error::D3011NegativeLimit(..) => "D3011",
             Error::D3020NegativeLimit(..) => "D3020",
             Error::D3030NonNumericCast(..) => "D3030",
+            Error::D3050SecondArguement(..) => "D3050",
             Error::D3060SqrtNegative(..) => "D3060",
             Error::D3061PowUnrepresentable(..) => "D3061",
             Error::D3070InvalidDefaultSort(..) => "D3070",
@@ -216,6 +218,8 @@ impl fmt::Display for Error {
                 write!(f, "{}: Third argument of split function must evaluate to a positive number", p),
             D3030NonNumericCast(ref p, ref n) =>
                 write!(f, "{}: Unable to cast value to a number: {}", p, n),
+            D3050SecondArguement(ref p) => 
+                write!(f, "{}: The second argument of reduce function must be a function with at least two arguments", p),
             D3060SqrtNegative(ref p, ref n) =>
                 write!(f, "{}: The sqrt function cannot be applied to a negative number: {}", p, n),
             D3061PowUnrepresentable(ref p, ref b, ref e) =>

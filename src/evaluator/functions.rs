@@ -1453,26 +1453,41 @@ pub fn fn_reduce<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
+    // Allow up to 3 arguments: array, function, and optional initial value
     max_args!(context, args, 3);
 
     if args.len() < 2 {
         return Err(Error::T0410ArgumentNotValid(0, 2, context.name.to_string()));
     }
 
-    let first_arg = args[0];
+    let original_value = args[0];
     let func = args[1];
     let init = args.get(2).copied();
 
-    if !first_arg.is_array() {
-        if first_arg.is_string() {
-            return Ok(first_arg);
+    // Handle the case where the first argument is a scalar value or an empty string
+    if !original_value.is_array() {
+        // If the first argument is a scalar (e.g., 1 or 42), return the scalar
+        if original_value.is_number() {
+            return Ok(original_value);
         }
-        return Ok(first_arg);
+
+        // If the first argument is a string, return the string (e.g., "")
+        if original_value.is_string() {
+            return Ok(original_value);
+        }
+
+        // If the function has fewer than 2 arguments, raise an error (D3050)
+        if func.is_function() && args.len() < 2 {
+            return Err(Error::D3050SecondArguement(context.name.to_string()));
+        }
+
+        // For other cases, return undefined
+        return Ok(Value::undefined());
     }
 
-    let (elements, _extra_field) = match first_arg {
+    let (elements, _extra_field) = match original_value {
         Value::Array(elems, extra) => (elems, extra),
-        _ => return Err(Error::T0410ArgumentNotValid(0, 1, context.name.to_string())),
+        _ => return Err(Error::D3050SecondArguement(context.name.to_string())),
     };
 
     if elements.is_empty() {
@@ -1483,21 +1498,32 @@ pub fn fn_reduce<'a>(
         return Err(Error::T0410ArgumentNotValid(1, 1, context.name.to_string()));
     }
 
+    // Initialize the accumulator based on the presence of the init argument
     let mut accumulator = init.unwrap_or_else(|| elements[0]);
 
     let start_index = if init.is_some() { 0 } else { 1 };
 
-    for (index, value) in elements.iter().enumerate().skip(start_index) {
+    // Iterate over the array using slice syntax
+    for (index, value) in elements[start_index..].iter().enumerate() {
         let index_value = Value::number(context.arena, index as f64);
 
-        if accumulator.is_string() && value.is_string() {
-            // Proceed with string concatenation logic if both are strings
-        } else if !accumulator.is_number() || !value.is_number() {
-            return Err(Error::T0410ArgumentNotValid(1, 1, context.name.to_string()));
-        }
+        println!("accumulator: {:?}", accumulator);
+        println!("value: {:?}", value);
+        println!("index_value: {:?}", index_value);
+        println!("original_value: {:?}", original_value);
 
-        let args_to_pass = vec![accumulator, value, index_value, first_arg];
-        accumulator = context.evaluate_function(func, &args_to_pass)?;
+        // Attempt to call the function with two arguments, catch errors if it fails
+        let result =
+            context.evaluate_function(func, &[accumulator, value, index_value, original_value]);
+
+        match result {
+            Ok(new_accumulator) => {
+                accumulator = new_accumulator;
+            }
+            Err(_) => {
+                return Err(Error::T0410ArgumentNotValid(1, 1, context.name.to_string()));
+            }
+        }
     }
 
     Ok(accumulator)

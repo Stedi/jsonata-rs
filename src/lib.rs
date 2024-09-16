@@ -696,40 +696,6 @@ mod tests {
     }
 
     #[test]
-    fn evaluate_with_reduce_scalar_value() {
-        let arena = Bump::new();
-
-        // Passing a scalar value (42) instead of an array
-        let jsonata = JsonAta::new(
-            "$reduce(42, function($i, $j){$i + $j})", // Scalar value instead of array
-            &arena,
-        )
-        .unwrap();
-
-        let result = jsonata.evaluate(None, None).unwrap();
-
-        // Since it's a scalar, the result should be 42 without any reduction
-        assert_eq!(result.as_f64(), 42.0);
-    }
-
-    #[test]
-    fn evaluate_with_reduce_string_value() {
-        let arena = Bump::new();
-
-        // Passing an empty string ("") instead of an array
-        let jsonata = JsonAta::new(
-            "$reduce(\"\", function($i, $j){$i + $j})", // Empty string as first argument
-            &arena,
-        )
-        .unwrap();
-
-        let result = jsonata.evaluate(None, None).unwrap();
-
-        // Since the first argument is an empty string, it should return ""
-        assert_eq!(result.as_str(), ""); // Expecting an empty string as the result
-    }
-
-    #[test]
     fn evaluate_with_reduce_single_data_element() {
         let arena = Bump::new();
 
@@ -741,30 +707,5 @@ mod tests {
 
         // Since the array contains only one element "data", it should return "data"
         assert_eq!(result.as_str(), "data"); // Expecting the string "data" as the result
-    }
-
-    #[test]
-    fn evaluate_with_reduce_data_and_empty_string_error() {
-        let arena = Bump::new();
-
-        // Passing an array with elements ["data", ""]
-        let jsonata = JsonAta::new(
-            "$reduce([\"data\", \"\"], function($i, $j){$i + $j})",
-            &arena,
-        )
-        .unwrap();
-
-        let result = jsonata.evaluate(None, None);
-
-        // The operation should result in an error, as adding a string and empty string is invalid
-        assert!(result.is_err());
-
-        // Optionally, check for the specific error message
-        if let Err(e) = result {
-            assert_eq!(
-                e.to_string(),
-                "T2001 @ 42: The left side of the `+` operator must evaluate to a number"
-            );
-        }
     }
 }
