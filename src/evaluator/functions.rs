@@ -1464,6 +1464,11 @@ pub fn fn_reduce<'a>(
     let func = args[1];
     let init = args.get(2).copied();
 
+    // If the function has fewer than 2 arguments, raise an error (D3050)
+    if func.is_function() && func.arity() < 2 {
+        return Err(Error::D3050SecondArguement(context.name.to_string()));
+    }
+
     // Handle the case where the first argument is a scalar value or an empty string
     if !original_value.is_array() {
         // If the first argument is a scalar (e.g., 1 or 42), return the scalar
@@ -1474,11 +1479,6 @@ pub fn fn_reduce<'a>(
         // If the first argument is a string, return the string (e.g., "")
         if original_value.is_string() {
             return Ok(original_value);
-        }
-
-        // If the function has fewer than 2 arguments, raise an error (D3050)
-        if func.is_function() && args.len() < 2 {
-            return Err(Error::D3050SecondArguement(context.name.to_string()));
         }
 
         // For other cases, return undefined
@@ -1506,11 +1506,6 @@ pub fn fn_reduce<'a>(
     // Iterate over the array using slice syntax
     for (index, value) in elements[start_index..].iter().enumerate() {
         let index_value = Value::number(context.arena, index as f64);
-
-        println!("accumulator: {:?}", accumulator);
-        println!("value: {:?}", value);
-        println!("index_value: {:?}", index_value);
-        println!("original_value: {:?}", original_value);
 
         // Attempt to call the function with two arguments, catch errors if it fails
         let result =
