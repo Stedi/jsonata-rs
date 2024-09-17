@@ -1501,7 +1501,13 @@ pub fn fn_reduce<'a>(
     // Initialize the accumulator based on the presence of the init argument
     let mut accumulator = init.unwrap_or_else(|| elements[0]);
 
-    let start_index = if init.is_some() { 0 } else { 1 };
+    let start_index = if init.is_some()
+        || (original_value.is_array() && original_value.is_array_of_strings() && elements.len() > 1)
+    {
+        0
+    } else {
+        1
+    };
 
     // Iterate over the array using slice syntax
     for (index, value) in elements[start_index..].iter().enumerate() {
