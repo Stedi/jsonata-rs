@@ -1449,11 +1449,18 @@ pub fn fn_round<'a>(
     Ok(Value::number(context.arena, num))
 }
 
+fn is_array_of_strings(value: &Value) -> bool {
+    if let Value::Array(elements, _) = value {
+        elements.iter().all(|v| v.is_string())
+    } else {
+        false
+    }
+}
+
 pub fn fn_reduce<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    // Allow up to 3 arguments: array, function, and optional initial value
     max_args!(context, args, 3);
 
     if args.len() < 2 {
@@ -1464,24 +1471,19 @@ pub fn fn_reduce<'a>(
     let func = args[1];
     let init = args.get(2).copied();
 
-    // If the function has fewer than 2 arguments, raise an error (D3050)
     if func.is_function() && func.arity() < 2 {
         return Err(Error::D3050SecondArguement(context.name.to_string()));
     }
 
-    // Handle the case where the first argument is a scalar value or an empty string
     if !original_value.is_array() {
-        // If the first argument is a scalar (e.g., 1 or 42), return the scalar
         if original_value.is_number() {
             return Ok(original_value);
         }
 
-        // If the first argument is a string, return the string (e.g., "")
         if original_value.is_string() {
             return Ok(original_value);
         }
 
-        // For other cases, return undefined
         return Ok(Value::undefined());
     }
 
@@ -1498,22 +1500,20 @@ pub fn fn_reduce<'a>(
         return Err(Error::T0410ArgumentNotValid(1, 1, context.name.to_string()));
     }
 
-    // Initialize the accumulator based on the presence of the init argument
     let mut accumulator = init.unwrap_or_else(|| elements[0]);
 
-    let start_index = if init.is_some()
-        || (original_value.is_array() && original_value.is_array_of_strings() && elements.len() > 1)
-    {
+    let has_init_value = init.is_some();
+    let is_non_single_array_of_strings = is_array_of_strings(original_value) && elements.len() > 1;
+
+    let start_index = if has_init_value || is_non_single_array_of_strings {
         0
     } else {
         1
     };
 
-    // Iterate over the array using slice syntax
     for (index, value) in elements[start_index..].iter().enumerate() {
         let index_value = Value::number(context.arena, index as f64);
 
-        // Attempt to call the function with two arguments, catch errors if it fails
         let result =
             context.evaluate_function(func, &[accumulator, value, index_value, original_value]);
 
