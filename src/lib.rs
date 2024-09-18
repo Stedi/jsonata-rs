@@ -152,6 +152,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("now", 2, fn_now);
         bind_native!("number", 1, fn_number);
         bind_native!("random", 0, fn_random);
+        bind_native!("reduce", 3, fn_reduce);
         bind_native!("power", 2, fn_power);
         bind_native!("replace", 4, fn_replace);
         bind_native!("reverse", 1, fn_reverse);
@@ -571,7 +572,6 @@ mod tests {
             Ok(value) => {
                 if value.is_number() {
                     let millis = value.as_f64();
-                    println!("Milliseconds: {}", millis);
 
                     // Check if the milliseconds value matches the expected timestamp
                     assert_eq!(
@@ -588,5 +588,124 @@ mod tests {
                 panic!("Failed to evaluate the expression.");
             }
         }
+    }
+
+    #[test]
+    fn evaluate_with_reduce() {
+        let arena = Bump::new(); // Initialize the memory arena
+        let jsonata = JsonAta::new(
+            "$reduce([1..5], function($i, $j){$i * $j})", // Example expression
+            &arena,
+        )
+        .unwrap();
+
+        let result = jsonata.evaluate(None, None).unwrap(); // Evaluate the expression
+
+        // Assert that the result is the expected product of 1 * 2 * 3 * 4 * 5 = 120
+        assert_eq!(result.as_f64(), 120.0);
+    }
+
+    #[test]
+    fn evaluate_with_reduce_sum() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new(
+            "$reduce([1..5], function($i, $j){$i + $j})", // Adding 1 to 5
+            &arena,
+        )
+        .unwrap();
+
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        // Assert that the result is 15 (1 + 2 + 3 + 4 + 5 = 15)
+        assert_eq!(result.as_f64(), 15.0);
+    }
+
+    #[test]
+    fn evaluate_with_reduce_custom_initial_value() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new(
+            "$reduce([1..5], function($i, $j){$i * $j}, 10)", // Multiply with initial value 10
+            &arena,
+        )
+        .unwrap();
+
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        // Assert that the result is 1200 (10 * 1 * 2 * 3 * 4 * 5 = 1200)
+        assert_eq!(result.as_f64(), 1200.0);
+    }
+
+    #[test]
+    fn evaluate_with_reduce_empty_array() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new(
+            "$reduce([], function($i, $j){$i + $j})", // Reducing an empty array
+            &arena,
+        )
+        .unwrap();
+
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        // Since the array is empty, the result should be `undefined`
+        assert!(result.is_undefined());
+    }
+
+    #[test]
+    fn evaluate_with_reduce_single_element() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new(
+            "$reduce([42], function($i, $j){$i + $j})", // Single element array
+            &arena,
+        )
+        .unwrap();
+
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        // Assert that the result is 42 (only one element, so it returns that element)
+        assert_eq!(result.as_f64(), 42.0);
+    }
+
+    #[test]
+    fn evaluate_with_reduce_subtraction() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new(
+            "$reduce([10, 3, 2], function($i, $j){$i - $j})", // Subtracting elements
+            &arena,
+        )
+        .unwrap();
+
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        // Assert that the result is 5 (10 - 3 - 2 = 5)
+        assert_eq!(result.as_f64(), 5.0);
+    }
+
+    #[test]
+    fn evaluate_with_reduce_initial_value_greater() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new(
+            "$reduce([1..3], function($i, $j){$i - $j}, 10)", // Initial value is greater than array elements
+            &arena,
+        )
+        .unwrap();
+
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        // Assert that the result is 4 (10 - 1 - 2 - 3 = 4)
+        assert_eq!(result.as_f64(), 4.0);
+    }
+
+    #[test]
+    fn evaluate_with_reduce_single_data_element() {
+        let arena = Bump::new();
+
+        // Passing an array with a single element ["data"]
+        let jsonata =
+            JsonAta::new("$reduce([\"data\"], function($i, $j){$i + $j})", &arena).unwrap();
+
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        // Since the array contains only one element "data", it should return "data"
+        assert_eq!(result.as_str(), "data"); // Expecting the string "data" as the result
     }
 }

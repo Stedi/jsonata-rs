@@ -995,17 +995,13 @@ pub fn from_millis<'a>(
     }
 
     max_args!(context, args, 3);
-
-    // Extract the milliseconds argument
     let millis = args[0].as_f64() as i64;
 
-    // Convert milliseconds to DateTime using `timestamp_millis_opt`
     let timestamp = Utc
         .timestamp_millis_opt(millis)
         .single()
         .ok_or_else(|| Error::T0410ArgumentNotValid(0, 1, context.name.to_string()))?;
 
-    // Extract the optional picture and timezone arguments
     let (picture, timezone) = match args {
         [_, picture, timezone] => (
             if picture.is_string() {
@@ -1039,7 +1035,6 @@ pub fn from_millis<'a>(
         return Err(Error::D3135PictureStringNoClosingBracketError(err));
     }
 
-    // Adjust timezone if provided
     let adjusted_time = if !timezone.is_empty() {
         parse_timezone_offset(&timezone)
             .map(|offset| timestamp.with_timezone(&offset))
@@ -1069,12 +1064,10 @@ pub fn to_millis<'a>(
 ) -> Result<&'a Value<'a>> {
     let arr = args.first().copied().unwrap_or_else(Value::undefined);
 
-    // If the input is undefined, return undefined
     if arr.is_undefined() {
         return Ok(Value::undefined());
     }
 
-    // Ensure at most two arguments
     max_args!(context, args, 2);
 
     // Extract the timestamp string
@@ -1447,6 +1440,87 @@ pub fn fn_round<'a>(
     let num = multiply_by_pow10(num, -precision)?;
 
     Ok(Value::number(context.arena, num))
+}
+
+fn is_array_of_strings(value: &Value) -> bool {
+    if let Value::Array(elements, _) = value {
+        elements.iter().all(|v| v.is_string())
+    } else {
+        false
+    }
+}
+
+pub fn fn_reduce<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 3);
+
+    if args.len() < 2 {
+        return Err(Error::T0410ArgumentNotValid(0, 2, context.name.to_string()));
+    }
+
+    let original_value = args[0];
+    let func = args[1];
+    let init = args.get(2).copied();
+
+    if func.is_function() && func.arity() < 2 {
+        return Err(Error::D3050SecondArguement(context.name.to_string()));
+    }
+
+    if !original_value.is_array() {
+        if original_value.is_number() {
+            return Ok(original_value);
+        }
+
+        if original_value.is_string() {
+            return Ok(original_value);
+        }
+
+        return Ok(Value::undefined());
+    }
+
+    let (elements, _extra_field) = match original_value {
+        Value::Array(elems, extra) => (elems, extra),
+        _ => return Err(Error::D3050SecondArguement(context.name.to_string())),
+    };
+
+    if elements.is_empty() {
+        return Ok(init.unwrap_or_else(|| Value::undefined()));
+    }
+
+    if !func.is_function() {
+        return Err(Error::T0410ArgumentNotValid(1, 1, context.name.to_string()));
+    }
+
+    let mut accumulator = init.unwrap_or_else(|| elements[0]);
+
+    let has_init_value = init.is_some();
+    let is_non_single_array_of_strings = is_array_of_strings(original_value) && elements.len() > 1;
+
+    let start_index = if has_init_value || is_non_single_array_of_strings {
+        0
+    } else {
+        1
+    };
+
+    for (index, value) in elements[start_index..].iter().enumerate() {
+        let index_value = Value::number(context.arena, index as f64);
+
+        let result =
+            context.evaluate_function(func, &[accumulator, value, index_value, original_value]);
+
+        match result {
+            Ok(new_accumulator) => {
+                accumulator = new_accumulator;
+            }
+            Err(_) => {
+                return Err(Error::T0410ArgumentNotValid(1, 1, context.name.to_string()));
+            }
+        }
+    }
+
+    Ok(accumulator)
 }
 
 // We need to do this multiplication by powers of 10 in a string to avoid
