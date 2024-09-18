@@ -995,17 +995,13 @@ pub fn from_millis<'a>(
     }
 
     max_args!(context, args, 3);
-
-    // Extract the milliseconds argument
     let millis = args[0].as_f64() as i64;
 
-    // Convert milliseconds to DateTime using `timestamp_millis_opt`
     let timestamp = Utc
         .timestamp_millis_opt(millis)
         .single()
         .ok_or_else(|| Error::T0410ArgumentNotValid(0, 1, context.name.to_string()))?;
 
-    // Extract the optional picture and timezone arguments
     let (picture, timezone) = match args {
         [_, picture, timezone] => (
             if picture.is_string() {
@@ -1039,7 +1035,6 @@ pub fn from_millis<'a>(
         return Err(Error::D3135PictureStringNoClosingBracketError(err));
     }
 
-    // Adjust timezone if provided
     let adjusted_time = if !timezone.is_empty() {
         parse_timezone_offset(&timezone)
             .map(|offset| timestamp.with_timezone(&offset))
@@ -1069,12 +1064,10 @@ pub fn to_millis<'a>(
 ) -> Result<&'a Value<'a>> {
     let arr = args.first().copied().unwrap_or_else(Value::undefined);
 
-    // If the input is undefined, return undefined
     if arr.is_undefined() {
         return Ok(Value::undefined());
     }
 
-    // Ensure at most two arguments
     max_args!(context, args, 2);
 
     // Extract the timestamp string
