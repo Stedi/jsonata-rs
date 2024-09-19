@@ -36,3 +36,11 @@ Adding support for base64 encoding decoding, thanks to nated0g for the contribut
 ## [0.1.6] - 2024-09-09
 
 - `$random`, `$round` and `$distinct` function support.
+
+## [0.1.7] - 2024-09-13
+
+- `$fromMillis`, `$toMillis`, `$substringBefore`, `$substringAfter`, `$now` function support.
+
+## [0.1.8] - 2024-09-18
+
+- `$reduce` function support.
