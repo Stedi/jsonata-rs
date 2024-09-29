@@ -1089,6 +1089,69 @@ pub fn to_millis<'a>(
     }
 }
 
+pub fn fn_zip<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    if args
+        .iter()
+        .any(|arg| arg.is_null() || matches!(arg, Value::Undefined))
+    {
+        return Ok(context.arena.alloc(Value::Array(
+            bumpalo::vec![in context.arena;],
+            ArrayFlags::empty(),
+        )));
+    }
+
+    // Create a vector of arrays
+    let arrays: Vec<&bumpalo::collections::Vec<'a, &'a Value<'a>>> = args
+        .iter()
+        .filter_map(|arg| match arg {
+            Value::Array(arr, _) => Some(arr),
+            _ => None,
+        })
+        .collect();
+
+    if arrays.is_empty() {
+        let mut result: bumpalo::collections::Vec<&Value<'a>> = bumpalo::vec![in context.arena;];
+        let mut outer_array: bumpalo::collections::Vec<&Value<'a>> =
+            bumpalo::vec![in context.arena;];
+        for arg in args {
+            result.push(*arg);
+        }
+        outer_array.push(
+            context
+                .arena
+                .alloc(Value::Array(result, ArrayFlags::empty())),
+        );
+        return Ok(context
+            .arena
+            .alloc(Value::Array(outer_array, ArrayFlags::empty())));
+    }
+
+    let min_length = arrays.iter().map(|arr| arr.len()).min().unwrap_or(0);
+
+    let mut result: bumpalo::collections::Vec<'a, &Value<'a>> = bumpalo::vec![in context.arena;]; // Allocating result in the arena
+
+    for i in 0..min_length {
+        let mut tuple: bumpalo::collections::Vec<'a, &Value<'a>> = bumpalo::vec![in context.arena;]; // Allocating tuple in the arena, immutable
+
+        for arr in &arrays {
+            tuple.push(arr[i]);
+        }
+
+        result.push(
+            context
+                .arena
+                .alloc(Value::Array(tuple, ArrayFlags::empty())),
+        );
+    }
+
+    Ok(context
+        .arena
+        .alloc(Value::Array(result, ArrayFlags::empty())))
+}
+
 pub fn fn_assert<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
