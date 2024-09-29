@@ -39,6 +39,8 @@ pub enum Error {
     D3070InvalidDefaultSort(usize),
     D3141Assert(String),
     D3137Error(String),
+    D3138Error(String),
+    D3139Error(String),
     D3133PictureStringNameModifierError(String),
     D3134TooManyTzDigits(String),
     D3135PictureStringNoClosingBracketError(String),
@@ -126,6 +128,8 @@ impl Error {
             Error::D3135PictureStringNoClosingBracketError(..) => "D3135",
             Error::D3141Assert(..) => "D3141",
             Error::D3137Error(..) => "D3137",
+            Error::D3138Error(..) => "D3138",
+            Error::D3139Error(..) => "D3139",
 
             // Type errors
             Error::T0410ArgumentNotValid(..) => "T0410",
@@ -236,6 +240,10 @@ impl fmt::Display for Error {
                 write!(f, "{}", m),
             D3137Error(ref m) =>
                 write!(f, "{}", m),
+            D3138Error(ref m) =>
+                write!(f, "{}: The $single() function expected exactly 1 matching result.  Instead it matched more.", m),
+            D3139Error(ref m) =>
+                write!(f, "{}: The $single() function expected exactly 1 matching result.  Instead it matched 0.", m),
             // Type errors
             T0410ArgumentNotValid(ref p, ref i, ref t) =>
                 write!(f, "{}: Argument {} of function {} does not match function signature", p, i, t),
