@@ -1095,7 +1095,7 @@ pub fn single<'a>(
 ) -> Result<&'a Value<'a>> {
     max_args!(context, args, 2);
 
-    let arr = args.get(0).copied().unwrap_or_else(Value::undefined);
+    let arr: &Value<'a> = args.first().copied().unwrap_or_else(Value::undefined);
 
     if arr.is_undefined() {
         return Ok(Value::undefined());
