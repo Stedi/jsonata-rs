@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use crate::datetime::{format_custom_date, parse_custom_format, parse_timezone_offset};
 use crate::parser::expressions::check_balanced_brackets;
 
+use bumpalo::collections::CollectIn;
 use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
 
@@ -1093,63 +1094,64 @@ pub fn fn_zip<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    if args
-        .iter()
-        .any(|arg| arg.is_null() || matches!(arg, Value::Undefined))
-    {
-        return Ok(context.arena.alloc(Value::Array(
-            bumpalo::vec![in context.arena;],
-            ArrayFlags::empty(),
-        )));
+    // Check for null or undefined values in the arguments
+    if args.iter().any(|arg| arg.is_null() || arg.is_undefined()) {
+        return Ok(Value::array(context.arena, ArrayFlags::empty()));
     }
 
-    // Create a vector of arrays
     let arrays: Vec<&bumpalo::collections::Vec<'a, &'a Value<'a>>> = args
         .iter()
-        .filter_map(|arg| match arg {
+        .filter_map(|arg| match *arg {
             Value::Array(arr, _) => Some(arr),
             _ => None,
         })
         .collect();
 
     if arrays.is_empty() {
-        let mut result: bumpalo::collections::Vec<&Value<'a>> = bumpalo::vec![in context.arena;];
-        let mut outer_array: bumpalo::collections::Vec<&Value<'a>> =
-            bumpalo::vec![in context.arena;];
-        for arg in args {
-            result.push(*arg);
-        }
-        outer_array.push(
-            context
-                .arena
-                .alloc(Value::Array(result, ArrayFlags::empty())),
-        );
-        return Ok(context
-            .arena
-            .alloc(Value::Array(outer_array, ArrayFlags::empty())));
+        let result: bumpalo::collections::Vec<&Value<'a>> =
+            args.iter().copied().collect_in(context.arena);
+
+        let outer_array =
+            Value::array_from(context.arena, result, ArrayFlags::empty()) as &Value<'a>;
+
+        let outer_array_alloc: bumpalo::collections::Vec<&Value<'a>> =
+            bumpalo::vec![in context.arena; outer_array];
+
+        return Ok(Value::array_from(
+            context.arena,
+            outer_array_alloc,
+            ArrayFlags::empty(),
+        ));
     }
 
     let min_length = arrays.iter().map(|arr| arr.len()).min().unwrap_or(0);
+    let mut iterators: Vec<_> = arrays
+        .iter()
+        .map(|arr| arr.iter().take(min_length))
+        .collect();
 
-    let mut result: bumpalo::collections::Vec<'a, &Value<'a>> = bumpalo::vec![in context.arena;]; // Allocating result in the arena
+    // Use an iterator of zipping all the array iterators and collect the result in bumpalo
+    let result: bumpalo::collections::Vec<&Value<'a>> = std::iter::repeat(())
+        .take(min_length)
+        .map(|_| {
+            let zipped: bumpalo::collections::Vec<&Value<'a>> = iterators
+                .iter_mut()
+                .map(|it| *it.next().unwrap()) // Dereference here to get `&Value<'a>`
+                .collect_in(context.arena);
 
-    for i in 0..min_length {
-        let mut tuple: bumpalo::collections::Vec<'a, &Value<'a>> = bumpalo::vec![in context.arena;]; // Allocating tuple in the arena, immutable
-
-        for arr in &arrays {
-            tuple.push(arr[i]);
-        }
-
-        result.push(
+            // Allocate the zipped tuple as a new array in the bumpalo arena
             context
                 .arena
-                .alloc(Value::Array(tuple, ArrayFlags::empty())),
-        );
-    }
+                .alloc(Value::Array(zipped, ArrayFlags::empty())) as &Value<'a>
+        })
+        .collect_in(context.arena);
 
-    Ok(context
-        .arena
-        .alloc(Value::Array(result, ArrayFlags::empty())))
+    // Return the final result array created from the zipped arrays
+    Ok(Value::array_from(
+        context.arena,
+        result,
+        ArrayFlags::empty(),
+    ))
 }
 
 pub fn fn_assert<'a>(
