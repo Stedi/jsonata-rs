@@ -1096,76 +1096,59 @@ pub fn single<'a>(
     max_args!(context, args, 2);
 
     let arr: &Value<'a> = args.first().copied().unwrap_or_else(Value::undefined);
-
     if arr.is_undefined() {
         return Ok(Value::undefined());
     }
 
-    let func = args.get(1);
-
-    let func = match func {
-        Some(f) if f.is_function() => f,
-        None => {
+    let func = args
+        .get(1)
+        .filter(|f| f.is_function())
+        .copied()
+        .unwrap_or_else(|| {
             // Default function that always returns true
-            let default_fn: &Value =
-                context
-                    .arena
-                    .alloc(Value::nativefn(context.arena, "default_true", 1, |_, _| {
-                        Ok(&Value::Bool(true))
-                    }));
-            default_fn
-        }
-        _ => return Err(Error::T0410ArgumentNotValid(1, 2, context.name.to_string())),
-    };
+            context
+                .arena
+                .alloc(Value::nativefn(context.arena, "default_true", 1, |_, _| {
+                    Ok(&Value::Bool(true))
+                }))
+        });
 
     if !arr.is_array() {
-        let func_args = vec![arr];
-        let res = context.evaluate_function(func, &func_args)?;
-        let positive_result = res.as_bool();
-
-        if positive_result {
-            return Ok(arr);
+        let res = context.evaluate_function(func, &[arr])?;
+        return if res.as_bool() {
+            Ok(arr)
         } else {
-            return Err(Error::D3139Error(
+            Err(Error::D3139Error(
                 "No value matched the predicate.".to_string(),
-            ));
-        }
+            ))
+        };
     }
 
-    let (elements, _extra_field) = match arr {
-        Value::Array(elems, extra) => (elems, extra),
-        _ => return Err(Error::T0410ArgumentNotValid(0, 2, context.name.to_string())),
-    };
+    if let Value::Array(elements, _) = arr {
+        let mut result: Option<&'a Value<'a>> = None;
 
-    let mut has_found_match = false;
-    let mut result: Option<&'a Value<'a>> = None;
+        for (index, entry) in elements.iter().enumerate() {
+            let res = context.evaluate_function(
+                func,
+                &[entry, Value::number(context.arena, index as f64), arr],
+            )?;
 
-    for (index, entry) in elements.iter().enumerate() {
-        let func_args: Vec<&Value> = vec![entry, Value::number(context.arena, index as f64), arr];
-        let res = context.evaluate_function(func, func_args.as_slice())?; // Evaluate the predicate function
-
-        let positive_result = res.as_bool();
-
-        if positive_result {
-            if has_found_match {
-                return Err(Error::D3138Error(format!(
-                    "More than one value matched the predicate at index {}",
-                    index
-                )));
-            } else {
-                result = Some(entry);
-                has_found_match = true;
+            if res.as_bool() {
+                if result.is_some() {
+                    return Err(Error::D3138Error(format!(
+                        "More than one value matched the predicate at index {}",
+                        index
+                    )));
+                } else {
+                    result = Some(entry);
+                }
             }
         }
-    }
 
-    if !has_found_match {
-        return Err(Error::D3139Error(
-            "No values matched the predicate.".to_string(),
-        ));
+        result.ok_or_else(|| Error::D3139Error("No values matched the predicate.".to_string()))
+    } else {
+        Err(Error::T0410ArgumentNotValid(0, 2, context.name.to_string()))
     }
-
-    Ok(result.unwrap())
 }
 
 pub fn fn_assert<'a>(
