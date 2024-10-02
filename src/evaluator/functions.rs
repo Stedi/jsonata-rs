@@ -1063,7 +1063,7 @@ pub fn to_millis<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
-    let arr = args.first().copied().unwrap_or_else(Value::undefined);
+    let arr: &Value<'a> = args.first().copied().unwrap_or_else(Value::undefined);
 
     if arr.is_undefined() {
         return Ok(Value::undefined());
@@ -1152,6 +1152,68 @@ pub fn fn_zip<'a>(
         result,
         ArrayFlags::empty(),
     ))
+}
+
+pub fn single<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 2);
+
+    let arr: &Value<'a> = args.first().copied().unwrap_or_else(Value::undefined);
+    if arr.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    let func = args
+        .get(1)
+        .filter(|f| f.is_function())
+        .copied()
+        .unwrap_or_else(|| {
+            // Default function that always returns true
+            context
+                .arena
+                .alloc(Value::nativefn(context.arena, "default_true", 1, |_, _| {
+                    Ok(&Value::Bool(true))
+                }))
+        });
+
+    if !arr.is_array() {
+        let res = context.evaluate_function(func, &[arr])?;
+        return if res.as_bool() {
+            Ok(arr)
+        } else {
+            Err(Error::D3139Error(
+                "No value matched the predicate.".to_string(),
+            ))
+        };
+    }
+
+    if let Value::Array(elements, _) = arr {
+        let mut result: Option<&'a Value<'a>> = None;
+
+        for (index, entry) in elements.iter().enumerate() {
+            let res = context.evaluate_function(
+                func,
+                &[entry, Value::number(context.arena, index as f64), arr],
+            )?;
+
+            if res.as_bool() {
+                if result.is_some() {
+                    return Err(Error::D3138Error(format!(
+                        "More than one value matched the predicate at index {}",
+                        index
+                    )));
+                } else {
+                    result = Some(entry);
+                }
+            }
+        }
+
+        result.ok_or_else(|| Error::D3139Error("No values matched the predicate.".to_string()))
+    } else {
+        Err(Error::T0410ArgumentNotValid(0, 2, context.name.to_string()))
+    }
 }
 
 pub fn fn_assert<'a>(

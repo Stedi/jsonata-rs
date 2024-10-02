@@ -137,6 +137,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("exists", 1, fn_exists);
         bind_native!("fromMillis", 3, from_millis);
         bind_native!("toMillis", 2, to_millis);
+        bind_native!("single", 2, single);
         bind_native!("filter", 2, fn_filter);
         bind_native!("floor", 1, fn_floor);
         bind_native!("join", 2, fn_join);
