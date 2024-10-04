@@ -1692,22 +1692,6 @@ pub fn fn_pad<'a>(
         return Ok(Value::string(context.arena, &str_to_pad));
     }
 
-    // If pad_char is a single character, use the standard library formatting
-    if pad_char.chars().count() == 1 {
-        let padding_char = pad_char.chars().next().unwrap_or(' ');
-
-        let result = if is_right_padding {
-            // Right padding
-            format!("{:<width$}", str_to_pad, width = width).replace(' ', &padding_char.to_string())
-        } else {
-            // Left padding
-            format!("{:>width$}", str_to_pad, width = width).replace(' ', &padding_char.to_string())
-        };
-
-        return Ok(Value::string(context.arena, &result));
-    }
-
-    // For multi-character pad strings, manually create the padding
     let padding = pad_char
         .chars()
         .cycle()
