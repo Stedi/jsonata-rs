@@ -1658,3 +1658,52 @@ fn multiply_by_pow10(num: f64, pow: isize) -> Result<f64> {
         .parse::<f64>()
         .map_err(|e| Error::D3137Error(e.to_string()))
 }
+
+pub fn fn_pad<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    let str_value = args.first().copied().unwrap_or_else(Value::undefined);
+    if !str_value.is_string() {
+        return Ok(Value::undefined());
+    }
+
+    let width_value = args.get(1).copied().unwrap_or_else(Value::undefined);
+    if !width_value.is_number() {
+        return Ok(Value::undefined());
+    }
+
+    let str_to_pad = str_value.as_str(); // as_str returns Cow<'_, str>
+
+    let width_i64 = width_value.as_f64().round() as i64;
+    let width = width_i64.unsigned_abs() as usize;
+    let is_right_padding = width_i64 > 0; // Positive width means right padding
+
+    let pad_char = args
+        .get(2)
+        .map(|v| v.as_str())
+        .filter(|c| !c.is_empty())
+        .unwrap_or(Cow::Borrowed(" "));
+
+    let pad_length = width.saturating_sub(str_to_pad.chars().count());
+
+    // Early return if no padding is needed
+    if pad_length == 0 {
+        return Ok(Value::string(context.arena, &str_to_pad));
+    }
+
+    let padding = pad_char
+        .chars()
+        .cycle()
+        .take(pad_length)
+        .collect::<String>();
+
+    // Depending on whether it's right or left padding, append or prepend the padding
+    let result = if is_right_padding {
+        format!("{}{}", str_to_pad, padding)
+    } else {
+        format!("{}{}", padding, str_to_pad)
+    };
+
+    Ok(Value::string(context.arena, &result))
+}

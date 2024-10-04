@@ -152,9 +152,10 @@ impl<'a> JsonAta<'a> {
         bind_native!("not", 1, fn_not);
         bind_native!("now", 2, fn_now);
         bind_native!("number", 1, fn_number);
+        bind_native!("pad", 2, fn_pad);
+        bind_native!("power", 2, fn_power);
         bind_native!("random", 0, fn_random);
         bind_native!("reduce", 3, fn_reduce);
-        bind_native!("power", 2, fn_power);
         bind_native!("replace", 4, fn_replace);
         bind_native!("reverse", 1, fn_reverse);
         bind_native!("round", 2, fn_round);
