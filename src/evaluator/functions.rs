@@ -1668,27 +1668,24 @@ pub fn fn_pad<'a>(
         return Ok(Value::undefined());
     }
 
-    let str_to_pad = if str_value.is_string() {
-        str_value.as_str() // as_str returns Cow<'_, str>
-    } else {
-        return Ok(Value::undefined());
-    };
-
     let width_value = args.get(1).copied().unwrap_or_else(Value::undefined);
     if !width_value.is_number() {
         return Ok(Value::undefined());
     }
 
-    let width_i64 = width_value.as_f64().round() as i64;
+    let str_to_pad = str_value.as_str(); // as_str returns Cow<'_, str>
 
-    // Extract or default to space, treat empty string as space
+    let width_i64 = width_value.as_f64().round() as i64;
+    let width = width_i64.unsigned_abs() as usize;
+    let is_right_padding = width_i64 > 0; // Positive width means right padding
+
     let pad_char = args
         .get(2)
         .map(|v| v.as_str())
         .filter(|c| !c.is_empty())
         .unwrap_or(Cow::Borrowed(" "));
 
-    let pad_length = (width_i64.unsigned_abs() as usize).saturating_sub(str_to_pad.chars().count());
+    let pad_length = width.saturating_sub(str_to_pad.chars().count());
 
     // Early return if no padding is needed
     if pad_length == 0 {
@@ -1699,14 +1696,12 @@ pub fn fn_pad<'a>(
     if pad_char.chars().count() == 1 {
         let padding_char = pad_char.chars().next().unwrap_or(' ');
 
-        let result = if width_i64 > 0 {
+        let result = if is_right_padding {
             // Right padding
-            format!("{:<width$}", str_to_pad, width = width_i64 as usize)
-                .replace(' ', &padding_char.to_string())
+            format!("{:<width$}", str_to_pad, width = width).replace(' ', &padding_char.to_string())
         } else {
             // Left padding
-            format!("{:>width$}", str_to_pad, width = (-width_i64) as usize)
-                .replace(' ', &padding_char.to_string())
+            format!("{:>width$}", str_to_pad, width = width).replace(' ', &padding_char.to_string())
         };
 
         return Ok(Value::string(context.arena, &result));
@@ -1719,8 +1714,8 @@ pub fn fn_pad<'a>(
         .take(pad_length)
         .collect::<String>();
 
-    // Depending on width, pad left or right manually
-    let result = if width_i64 > 0 {
+    // Depending on whether it's right or left padding, append or prepend the padding
+    let result = if is_right_padding {
         format!("{}{}", str_to_pad, padding)
     } else {
         format!("{}{}", padding, str_to_pad)
