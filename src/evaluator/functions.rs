@@ -1664,7 +1664,7 @@ pub fn fn_pad<'a>(
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
     let str_value = args.first().copied().unwrap_or_else(Value::undefined);
-    if str_value.is_undefined() {
+    if !str_value.is_string() {
         return Ok(Value::undefined());
     }
 
@@ -1695,18 +1695,31 @@ pub fn fn_pad<'a>(
         return Ok(Value::string(context.arena, &str_to_pad));
     }
 
-    // Create padding string, handle multi-character pad strings with truncation
-    let padding = if pad_char.chars().count() > 1 {
-        pad_char
-            .chars()
-            .cycle()
-            .take(pad_length)
-            .collect::<String>()
-    } else {
-        pad_char.repeat(pad_length)
-    };
+    // If pad_char is a single character, use the standard library formatting
+    if pad_char.chars().count() == 1 {
+        let padding_char = pad_char.chars().next().unwrap_or(' ');
 
-    // Depending on width, pad left or right
+        let result = if width_i64 > 0 {
+            // Right padding
+            format!("{:<width$}", str_to_pad, width = width_i64 as usize)
+                .replace(' ', &padding_char.to_string())
+        } else {
+            // Left padding
+            format!("{:>width$}", str_to_pad, width = (-width_i64) as usize)
+                .replace(' ', &padding_char.to_string())
+        };
+
+        return Ok(Value::string(context.arena, &result));
+    }
+
+    // For multi-character pad strings, manually create the padding
+    let padding = pad_char
+        .chars()
+        .cycle()
+        .take(pad_length)
+        .collect::<String>();
+
+    // Depending on width, pad left or right manually
     let result = if width_i64 > 0 {
         format!("{}{}", str_to_pad, padding)
     } else {
