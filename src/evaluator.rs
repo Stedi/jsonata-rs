@@ -149,6 +149,7 @@ impl<'a> Evaluator<'a> {
             if result.has_flags(ArrayFlags::SEQUENCE) && !result.has_flags(ArrayFlags::TUPLE_STREAM)
             {
                 if node.keep_array {
+                    println!("NODE KEY ARRAY");
                     result = result.clone_array_with_flags(
                         self.arena,
                         result.get_flags() | ArrayFlags::SINGLETON,

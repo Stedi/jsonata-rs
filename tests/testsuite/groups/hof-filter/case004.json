@@ -1,0 +1,6 @@
+{
+  "expr": "$filter([{\"id\": 0}, {\"id\": 1}, {\"id\": 2}], function($d) { $d.id = 1 })",
+  "data": { "data": 5 },
+  "bindings": {},
+  "result": [{ "id": 1 }]
+}
