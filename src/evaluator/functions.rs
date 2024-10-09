@@ -263,7 +263,7 @@ pub fn fn_filter<'a>(
         }
     }
 
-    Ok(result)
+    Ok(result.clone_array_with_flags(context.arena, ArrayFlags::SINGLETON))
 }
 
 pub fn fn_each<'a>(
