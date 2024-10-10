@@ -134,6 +134,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("distinct", 1, fn_distinct);
         bind_native!("each", 2, fn_each);
         bind_native!("error", 1, fn_error);
+        bind_native!("eval", 1, fn_eval);
         bind_native!("exists", 1, fn_exists);
         bind_native!("fromMillis", 3, from_millis);
         bind_native!("toMillis", 2, to_millis);

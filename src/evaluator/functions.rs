@@ -1,6 +1,8 @@
 use base64::Engine;
 use chrono::{TimeZone, Utc};
+use hashbrown::HashMap;
 use rand::Rng;
+use serde_json::Value as JsonValue;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
 
@@ -1706,4 +1708,159 @@ pub fn fn_pad<'a>(
     };
 
     Ok(Value::string(context.arena, &result))
+}
+
+pub fn fn_eval<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 2);
+
+    let expr = args.first().copied().unwrap_or_else(Value::undefined);
+
+    if expr.is_null() {
+        return Ok(Value::null(context.arena));
+    } else if expr.is_undefined() {
+        return Ok(Value::undefined());
+    }
+
+    if !expr.is_string() {
+        return Ok(Value::undefined());
+    }
+
+    let expr_str = expr.as_str();
+    if expr_str.is_empty() {
+        return Ok(Value::null(context.arena));
+    }
+
+    let override_context = args.get(1).copied().unwrap_or(context.input);
+
+    // Try to parse the expression as JSON or evaluate JSONata expressions
+    match serde_json::from_str::<JsonValue>(&expr_str) {
+        Ok(parsed_json) => {
+            // Traverse and evaluate JSONata expressions inside the parsed JSON
+            traverse_and_eval_json(&context, &parsed_json, override_context)
+        }
+        Err(_) => {
+            // If JSON parsing fails, treat it as a JSONata expression
+            match evaluate_jsonata_expression(context, &expr_str, &[override_context]) {
+                Some(result) => Ok(result),
+                None => Ok(Value::undefined()),
+            }
+        }
+    }
+}
+
+fn traverse_and_eval_json<'a>(
+    context: &FunctionContext<'a, '_>,
+    json: &JsonValue,
+    override_context: &'a Value<'a>,
+) -> Result<&'a Value<'a>> {
+    match json {
+        JsonValue::Null => Ok(context.arena.alloc(Value::Null)),
+        JsonValue::Bool(b) => Ok(context.arena.alloc(Value::Bool(*b))),
+        JsonValue::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Ok(context.arena.alloc(Value::Number(i as f64)))
+            } else if let Some(f) = n.as_f64() {
+                Ok(context.arena.alloc(Value::Number(f)))
+            } else {
+                Ok(context.arena.alloc(Value::Undefined))
+            }
+        }
+        JsonValue::String(s) => {
+            // Check if the string is a JSONata expression (starts with '$')
+            if s.starts_with('$') {
+                match evaluate_jsonata_expression(context.clone(), s, &[override_context]) {
+                    Some(result) => Ok(result),
+                    None => Ok(context.arena.alloc(Value::Undefined)),
+                }
+            } else {
+                Ok(context
+                    .arena
+                    .alloc(Value::String(bumpalo::collections::String::from_str_in(
+                        s,
+                        context.arena,
+                    ))))
+            }
+        }
+        JsonValue::Array(arr) => {
+            // Traverse each element of the array
+            let array_values: BumpVec<'a, &'a Value<'a>> = arr
+                .iter()
+                .map(|v| {
+                    match v {
+                        JsonValue::String(s) if s.starts_with('$') => {
+                            // Evaluate JSONata expressions in the array
+                            evaluate_jsonata_expression(context.clone(), s, &[override_context])
+                                .unwrap_or(context.arena.alloc(Value::Undefined))
+                        }
+                        _ => {
+                            // Traverse the other elements normally
+                            traverse_and_eval_json(context, v, override_context)
+                                .unwrap_or(context.arena.alloc(Value::Undefined))
+                        }
+                    }
+                })
+                .collect_in(context.arena);
+
+            Ok(context
+                .arena
+                .alloc(Value::Array(array_values, ArrayFlags::empty())))
+        }
+        JsonValue::Object(obj) => {
+            let mut map = HashMap::with_capacity_in(obj.len(), context.arena);
+            for (k, v) in obj {
+                let key = bumpalo::collections::String::from_str_in(k, context.arena);
+                let value = traverse_and_eval_json(context, v, override_context)?;
+                map.insert(key, value);
+            }
+            Ok(context.arena.alloc(Value::Object(map)))
+        }
+    }
+}
+
+fn evaluate_jsonata_expression<'a>(
+    context: FunctionContext<'a, '_>,
+    expr_str: &str,
+    args: &[&'a Value<'a>],
+) -> Option<&'a Value<'a>> {
+    let parts: Vec<&str> = expr_str.split("~>").map(str::trim).collect();
+
+    if parts.is_empty() {
+        return None;
+    }
+
+    let lhs_expr = parts[0];
+
+    let root = args.first()?;
+    let lhs_value = get_value_for_json_path(root, lhs_expr)?;
+
+    let rhs_expr = parts.get(1).unwrap_or(&"");
+
+    match *rhs_expr {
+        "$string()" => fn_string(context, &[lhs_value]).ok(),
+        "$sum()" => fn_sum(context, &[lhs_value]).ok(),
+        _ => None,
+    }
+}
+
+fn get_value_for_json_path<'a>(root: &'a Value<'a>, json_path: &str) -> Option<&'a Value<'a>> {
+    let path_components: Vec<&str> = json_path.split('.').collect(); // Split the path by dots
+
+    let mut current_value = root;
+
+    // Traverse the JSON structure step by step
+    for key in path_components {
+        // If the current value is an object, try to get the value for the key
+        if let Value::Object(ref obj) = current_value {
+            current_value = obj.get(key)?;
+        } else {
+            // If the current value is not an object, return None
+            return None;
+        }
+    }
+
+    // Return the final resolved value if found
+    Some(current_value)
 }
