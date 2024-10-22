@@ -19,7 +19,7 @@ bumpalo = { version = "3.16.0", features = [
     "boxed",
     "allocator-api2",
 ] }
-hashbrown = "0.14.5"
+hashbrown = "0.15.0"
 dtoa = "1.0.9"
 base64 = "0.22.1"
 serde_json = "1.0.117"
