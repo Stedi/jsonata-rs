@@ -427,9 +427,8 @@ fn tail_call_optimize(mut expr: Ast) -> Result<Ast> {
         }
         AstKind::Ternary { truthy, falsy, .. } => {
             *truthy = Box::new(tail_call_optimize(take(truthy))?);
-            match falsy {
-                Some(inner) => *falsy = Some(Box::new(tail_call_optimize(take(inner))?)),
-                None => {}
+            if let Some(inner) = falsy {
+                *falsy = Some(Box::new(tail_call_optimize(take(inner))?));
             }
             Ok(expr)
         }
