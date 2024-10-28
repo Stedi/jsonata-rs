@@ -1735,20 +1735,76 @@ pub fn fn_eval<'a>(
 
     let override_context = args.get(1).copied().unwrap_or(context.input);
 
-    // Try to parse the expression as JSON or evaluate JSONata expressions
-    match serde_json::from_str::<JsonValue>(&expr_str) {
+    // Pre-process the expression string to handle JSONata expressions inside JSON
+    match preprocess_and_eval_jsonata(&context, &expr_str, override_context) {
+        Ok(parsed_json) => Ok(parsed_json),
+        Err(_) => Ok(Value::undefined()),
+    }
+}
+
+fn preprocess_and_eval_jsonata<'a>(
+    context: &FunctionContext<'a, '_>,
+    expr_str: &str,
+    override_context: &'a Value<'a>,
+) -> Result<&'a Value<'a>> {
+    // Check if the input contains embedded JSONata expressions like $string(2)
+    let preprocessed_str = preprocess_jsonata_expressions(context, expr_str, override_context)?;
+
+    println!("Preprocessed JSONata: {}", preprocessed_str);
+    // Now attempt to parse the preprocessed string as JSON
+    match serde_json::from_str::<JsonValue>(&preprocessed_str) {
         Ok(parsed_json) => {
             // Traverse and evaluate JSONata expressions inside the parsed JSON
             traverse_and_eval_json(&context, &parsed_json, override_context)
         }
         Err(_) => {
             // If JSON parsing fails, treat it as a JSONata expression
-            match evaluate_jsonata_expression(context, &expr_str, &[override_context]) {
+            match evaluate_jsonata_expression(context.clone(), expr_str, &[override_context]) {
                 Some(result) => Ok(result),
                 None => Ok(Value::undefined()),
             }
         }
     }
+}
+
+fn preprocess_jsonata_expressions<'a>(
+    context: &FunctionContext<'a, '_>,
+    expr_str: &str,
+    override_context: &'a Value<'a>,
+) -> Result<String> {
+    let mut result_str = expr_str.to_string();
+
+    // Use a regex or manual search to detect JSONata expressions inside the JSON string
+    let re: regex::Regex = regex::Regex::new(r"\$string\((\d+)\)").unwrap(); // Detect $string(2)
+
+    println!("Original JSONata: {}", result_str);
+    println!("Override Context: {:?}", override_context);
+    println!("re: {:?}", re);
+    // Replace each detected JSONata expression with its evaluated result
+    result_str = re
+        .replace_all(&result_str, |caps: &regex::Captures| {
+            let expression = format!("$string({})", &caps[1]);
+            println!("Detected JSONata expression: {}", expression);
+            if let Some(eval_result) =
+                evaluate_jsonata_expression(context.clone(), &expression, &[override_context])
+            {
+                println!("Successfully evaluated JSONata: {}", eval_result);
+                match eval_result {
+                    Value::String(s) => format!("\"{}\"", s), // Ensure string values are quoted
+                    Value::Number(n) => format!("{}", n),     // Handle number values
+                    Value::Bool(b) => format!("{}", b),       // Handle boolean values if needed
+                    Value::Null => String::from("null"),      // Handle null values
+                    _ => String::from("null"), // Fallback for undefined or other types
+                }
+            } else {
+                println!("Evaluation of JSONata expression failed.");
+                String::from("null") // Fallback if evaluation fails
+            }
+        })
+        .to_string();
+
+    println!("Preprocessed JSONata: {}", result_str);
+    Ok(result_str)
 }
 
 fn traverse_and_eval_json<'a>(
@@ -1825,42 +1881,173 @@ fn evaluate_jsonata_expression<'a>(
     expr_str: &str,
     args: &[&'a Value<'a>],
 ) -> Option<&'a Value<'a>> {
-    let parts: Vec<&str> = expr_str.split("~>").map(str::trim).collect();
+    println!("Evaluating JSONata expression: {}", expr_str);
 
+    // Check for expressions like "$string(2)"
+    if expr_str.starts_with("$string(") && expr_str.ends_with(')') {
+        let inner_expr = &expr_str[8..expr_str.len() - 1];
+        if let Ok(num) = inner_expr.parse::<i64>() {
+            let string_value = num.to_string();
+            return Some(context.arena.alloc(Value::String(
+                bumpalo::collections::String::from_str_in(&string_value, context.arena),
+            )));
+        }
+    }
+
+    // Check for expressions like "$string(2)" or "$eval('Price * Quantity')"
+    if expr_str.starts_with("$eval(") && expr_str.ends_with(')') {
+        let inner_expr = &expr_str[6..expr_str.len() - 1]; // Get the inner expression without $eval()
+        return evaluate_jsonata_expression(context.clone(), inner_expr, args); // Evaluate the inner expression
+    }
+
+    // Handle the expression dynamically, allowing object field evaluation
+    if expr_str.contains("{") && expr_str.contains("}") {
+        return evaluate_jsonata_object(context, expr_str, args.first().unwrap_or(&&Value::Null));
+    }
+
+    // Split the expression into LHS and RHS parts
+    let parts: Vec<&str> = expr_str.split("~>").map(str::trim).collect();
     if parts.is_empty() {
         return None;
     }
 
     let lhs_expr = parts[0];
-
     let root = args.first()?;
-    let lhs_value = get_value_for_json_path(root, lhs_expr)?;
+
+    // Traverse the JSON using the dynamic path from lhs_expr
+    let lhs_value = traverse_and_collect_values(&context, root, lhs_expr);
 
     let rhs_expr = parts.get(1).unwrap_or(&"");
 
     match *rhs_expr {
         "$string()" => fn_string(context, &[lhs_value]).ok(),
-        "$sum()" => fn_sum(context, &[lhs_value]).ok(),
+        "$sum()" => {
+            // Call fn_sum to sum the collected values
+            fn_sum(context, &[lhs_value]).ok()
+        }
         _ => None,
     }
 }
 
-fn get_value_for_json_path<'a>(root: &'a Value<'a>, json_path: &str) -> Option<&'a Value<'a>> {
-    let path_components: Vec<&str> = json_path.split('.').collect(); // Split the path by dots
+fn evaluate_jsonata_object<'a>(
+    context: FunctionContext<'a, '_>,
+    object_expr: &str,
+    item_context: &'a Value<'a>,
+) -> Option<&'a Value<'a>> {
+    let mut object_map = HashMap::new_in(context.arena);
 
-    let mut current_value = root;
+    // Parse the object expression like "{ 'Name': `Product Name`, 'Total': $eval('Price * Quantity') }"
+    let object_def = parse_object_expression(object_expr);
 
-    // Traverse the JSON structure step by step
-    for key in path_components {
-        // If the current value is an object, try to get the value for the key
-        if let Value::Object(ref obj) = current_value {
-            current_value = obj.get(key)?;
+    // Dynamically evaluate each field in the object
+    for (field, expr) in object_def {
+        // Check if the expression is an evaluation ($eval)
+        if expr.starts_with("$eval(") && expr.ends_with(')') {
+            // Dynamically evaluate the expression
+            let inner_expr = &expr[6..expr.len() - 1]; // Strip $eval(...) to get the inner expression
+            if let Some(evaluated_value) =
+                evaluate_jsonata_expression(context.clone(), inner_expr, &[item_context])
+            {
+                object_map.insert(
+                    bumpalo::collections::String::from_str_in(&field, context.arena),
+                    evaluated_value, // Allocate the evaluated value directly
+                );
+            }
         } else {
-            // If the current value is not an object, return None
-            return None;
+            // For static values like `Product Name`
+            if let Some(evaluated_value) =
+                evaluate_jsonata_expression(context.clone(), &expr, &[item_context])
+            {
+                object_map.insert(
+                    bumpalo::collections::String::from_str_in(&field, context.arena),
+                    evaluated_value, // Allocate the evaluated value directly
+                );
+            }
         }
     }
 
-    // Return the final resolved value if found
-    Some(current_value)
+    Some(context.arena.alloc(Value::Object(object_map)))
+}
+
+// Helper function to parse object expressions
+fn parse_object_expression(object_expr: &str) -> Vec<(String, String)> {
+    let mut result = Vec::new();
+
+    // Simplified parsing logic for object expressions like "{ 'Name': `Product Name`, 'Total': $eval('Price * Quantity') }"
+    let regex = regex::Regex::new(
+        r"'(\w+)':\s*(\`([^`]+)\`|\$eval$begin:math:text$'([^']+)'$end:math:text$)",
+    )
+    .unwrap();
+
+    for cap in regex.captures_iter(object_expr) {
+        if let Some(field) = cap.get(1) {
+            if let Some(expr) = cap.get(3) {
+                result.push((field.as_str().to_string(), expr.as_str().to_string()));
+            // Static value (e.g., `Product Name`)
+            } else if let Some(eval_expr) = cap.get(4) {
+                result.push((
+                    field.as_str().to_string(),
+                    format!("$eval({})", eval_expr.as_str()),
+                ));
+                // Evaluated value (e.g., $eval('Price * Quantity'))
+            }
+        }
+    }
+
+    result
+}
+
+// Recursive function to traverse and collect values based on the dynamic path
+fn traverse_and_collect_values<'a>(
+    context: &FunctionContext<'a, '_>,
+    value: &'a Value<'a>,
+    path: &str, // JSON path like "Account.Order.Product.Quantity"
+) -> &'a Value<'a> {
+    let mut extracted_values = BumpVec::new_in(context.arena);
+
+    // Recursively traverse the JSON and collect values matching the path
+    traverse_recursive(
+        context,
+        value,
+        &path.split('.').collect::<Vec<&str>>(),
+        &mut extracted_values,
+    );
+
+    // Return the extracted values as an array
+    context
+        .arena
+        .alloc(Value::Array(extracted_values, ArrayFlags::empty()))
+}
+
+// Recursive helper function to traverse and collect values from arrays and objects
+fn traverse_recursive<'a>(
+    context: &FunctionContext<'a, '_>,
+    current_value: &'a Value<'a>,
+    path_parts: &[&str],
+    extracted_values: &mut BumpVec<'a, &'a Value<'a>>,
+) {
+    // Base case: If the path is empty, collect the current value
+    if path_parts.is_empty() {
+        extracted_values.push(current_value);
+        return;
+    }
+
+    let key = path_parts[0];
+    let remaining_path = &path_parts[1..];
+
+    match current_value {
+        Value::Object(obj) => {
+            // If it's an object, follow the key and continue
+            if let Some(next_value) = obj.get(key) {
+                traverse_recursive(context, next_value, remaining_path, extracted_values);
+            }
+        }
+        Value::Array(arr, _) => {
+            // If it's an array, iterate through each element and continue
+            for item in arr.iter() {
+                traverse_recursive(context, item, path_parts, extracted_values);
+            }
+        }
+        _ => {}
+    }
 }
