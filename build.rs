@@ -19,7 +19,7 @@ fn main() {
                 #[test]
                 #[ignore]
                 fn test_{}() {{
-                    test_case("{}");
+                    test_case(r"{}");
                 }}
                 "#,
                 sanitize_filename(&resource),
@@ -32,7 +32,7 @@ fn main() {
                 r#"
                 #[test]
                 fn test_{}() {{
-                    test_case("{}");
+                    test_case(r"{}");
                 }}
                 "#,
                 sanitize_filename(&resource),
