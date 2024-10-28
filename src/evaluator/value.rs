@@ -5,7 +5,7 @@ use bumpalo::boxed::Box;
 use bumpalo::collections::String as BumpString;
 use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
-use hashbrown::hash_map::DefaultHashBuilder;
+use hashbrown::DefaultHashBuilder;
 use hashbrown::HashMap;
 
 use super::frame::Frame;
