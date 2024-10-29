@@ -18,7 +18,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
 
       - name: Log Environment Info
@@ -61,3 +60,6 @@ jobs:
           files: target/release/*.crate # Adjust if necessary
         env:
           GITHUB_TOKEN: ${{ secrets.PUBLIC_PACKAGE_GITHUB_TOKEN }}
+
+      - name: Confirm Publish Success
+        run: echo "Published to crates.io successfully."
