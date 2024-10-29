@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - "v*.*.*" # Trigger on version tags like v0.1.9
+  pull_request:
+    branches:
+      - rs/release_pipeline # Or specify branches if needed
 
 env:
   CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -49,15 +52,25 @@ jobs:
           echo "Cargo registry token configured."
 
       - name: Publish to crates.io
+        if: github.event_name != 'pull_request'
         run: cargo publish --token $CARGO_REGISTRY_TOKEN
+
+      - name: Publish to crates.io (Simulated for PR)
+        if: github.event_name == 'pull_request'
+        run: echo "Simulating cargo publish for PR testing."
 
       - name: List Target Directory Contents
         run: ls -la target/release # Check if .crate files exist in release folder
 
       - name: Create GitHub Release
+        if: github.event_name != 'pull_request'
         id: gh_release
         uses: softprops/action-gh-release@v1
         with:
           files: target/release/*.crate # Adjust if necessary
         env:
           GITHUB_TOKEN: ${{ secrets.PUBLIC_PACKAGE_GITHUB_TOKEN }}
+
+      - name: Create GitHub Release (Simulated for PR)
+        if: github.event_name == 'pull_request'
+        run: echo "Simulating GitHub Release creation for PR testing."
