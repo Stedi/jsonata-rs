@@ -1,0 +1,52 @@
+name: Release to crates.io
+
+on:
+  push:
+    tags:
+      - "v*.*.*" # Trigger on version tags like v0.1.9
+
+env:
+  CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable # Ensure the stable Rust version
+
+      - name: Verify Cargo Credentials
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "Error: CARGO_REGISTRY_TOKEN is not set."
+            exit 1
+          fi
+
+      - name: Publish to crates.io
+        run: cargo publish --token $CARGO_REGISTRY_TOKEN
+
+      - name: Commit and Tag the Release
+        run: |
+          git config --global user.name "stedi-engineering"
+          git config --global user.email "engineering+github-autobot@stedi.com"
+          git tag -a $GITHUB_REF_NAME -m "Release $GITHUB_REF_NAME"
+          git push origin $GITHUB_REF_NAME
+
+      - name: Create GitHub Release
+        id: gh_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: target/release/*.crate # Adjust if necessary
+        env:
+          GITHUB_TOKEN: ${{ secrets.ENG_GITHUB_TOKEN }}
