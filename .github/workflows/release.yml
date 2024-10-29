@@ -21,6 +21,12 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Log Environment Info
+        run: |
+          echo "PATH: $PATH"
+          echo "Current directory: $(pwd)"
+          ls -la # List contents of current directory
+
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable # Ensure the stable Rust version
 
@@ -28,13 +34,25 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
+          echo "Checking Cargo credentials..."
           if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
             echo "Error: CARGO_REGISTRY_TOKEN is not set."
             exit 1
+          else
+            echo "CARGO_REGISTRY_TOKEN is set."
           fi
+
+      - name: Debug Cargo Config
+        run: |
+          cargo --version
+          echo "Cargo home: $CARGO_HOME"
+          echo "Cargo registry token configured."
 
       - name: Publish to crates.io
         run: cargo publish --token $CARGO_REGISTRY_TOKEN
+
+      - name: List Target Directory Contents
+        run: ls -la target/release # Check if .crate files exist in release folder
 
       - name: Create GitHub Release
         id: gh_release
