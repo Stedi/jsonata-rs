@@ -146,7 +146,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("lookup", 2, fn_lookup);
         bind_native!("lowercase", 1, fn_lowercase);
         bind_native!("map", 2, fn_map);
-        bind_native!("match_regex", 2, fn_match_regex);
+        bind_native!("matchRegex", 2, fn_match_regex);
         bind_native!("max", 1, fn_max);
         bind_native!("merge", 1, fn_merge);
         bind_native!("min", 1, fn_min);
@@ -718,7 +718,7 @@ mod tests {
         let arena = Bump::new();
 
         // Test case with a valid postal code
-        let jsonata = JsonAta::new(r#"$match_regex("123456789", "^[0-9]{9}$")"#, &arena).unwrap();
+        let jsonata = JsonAta::new(r#"$matchRegex("123456789", "^[0-9]{9}$")"#, &arena).unwrap();
         let result = jsonata.evaluate(None, None).unwrap();
 
         // Assert that the result is the postal code itself, indicating a valid match
@@ -726,7 +726,7 @@ mod tests {
 
         // Test case with an invalid postal code
         let jsonata_invalid =
-            JsonAta::new(r#"$match_regex("12345-6789", "^[0-9]{9}$")"#, &arena).unwrap();
+            JsonAta::new(r#"$matchRegex("12345-6789", "^[0-9]{9}$")"#, &arena).unwrap();
 
         let result_invalid = jsonata_invalid.evaluate(None, None);
 
