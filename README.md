@@ -3,7 +3,7 @@
 [<img alt="crates.io" src="https://img.shields.io/crates/v/jsonata-rs?logo=rust&style=for-the-badge" height=22>](https://crates.io/crates/jsonata-rs)
 [<img alt="docs.rs" src="https://img.shields.io/docsrs/jsonata-rs?label=docs.rs&logo=docs.rs&style=for-the-badge" height=22>](https://docs.rs/jsonata-rs)
 
-An (incomplete) implementation of [JSONata](https://jsonata.org) in Rust. Stedi's fork of [jsonata-rust](https://github.com/johanventer/jsonata-rust).
+An (incomplete) implementation of [JSONata](https://jsonata.org) in Rust.
 
 **Alpha version. All internal and external interfaces are considered unstable and subject to change without notice.**
 
@@ -22,7 +22,7 @@ Read the [complete documentation](https://docs.jsonata.org/overview.html), and t
 
 ## Getting started
 
-The API is not ergonomic, as you must provide a [`bumpalo`](https://github.com/fitzgen/bumpalo) arena.
+The API is not ergonomic (yet), as you must provide a [`bumpalo`](https://github.com/fitzgen/bumpalo) arena.
 
 First, add the following to your `Cargo.toml`:
 
@@ -98,11 +98,10 @@ ARGS:
 
 There are several JSONata features which are not yet implemented:
 
-- Many built-in functions are missing
+- Many built-in [functions are missing](https://github.com/Stedi/jsonata-rs/tree/main/tests/testsuite/skip)
 - Parent operator
 - Regular expressions
 - Partial function application
-- JSON AST output to match the reference implementation
 
 ## Differences from reference JSONata
 
@@ -122,10 +121,6 @@ This is implemented in each built-in function itself. For example, if `$string` 
 
 In addition, for all the built-in functions, type checking of arguments is also implemented directly in the functions themselves so that you get equivalent runtime errors for passing the wrong things to these functions as you would in reference JSONata.
 
-## Status
-
-There's a [status document](docs/status.md) which describes the current status and long-term goals for this implementation.
-
 ## Tests
 
 Reference JSONata contains an extensive test suite with over 1,000 tests. Currently, this implementation passes almost 800 of these. You can run them like this:
@@ -135,6 +130,25 @@ cargo test testsuite
 ```
 
 In `tests/testsuite/groups` are the tests groups that are passing, while `tests/testsuite/skip` contains the groups that still require feature implementation. There may be tests in the remaining groups that do pass, but I don't want to split them up - only when a test group fully passes is it moved.
+
+## Development status and goals
+
+### Status
+
+There are several issues to be resolved:
+
+- There are obviously still a bunch of missing features. We're aiming for feature parity with the reference implementation wherever feasible.
+- The API has not had any real thought put into it yet.
+- This implementation attempts structural sharing of the input and output values with minimal heap allocations. This was a lot of effort working out the lifetimes that may not be worth it. We may consider removing Bumpalo in the future.
+- We have made a couple of optimization passes, but there are still lots of opportunities for improvement.
+- The code is spaghetti in some places and could be more Rust-idiomatic.
+
+### Goals
+
+- Feature-parity with the reference implementation (within reason)
+- Clean API and idiomatic code (i.e. make the easy things easy and the complex possible)
+- Well-documented for users and easy to onboard for contributors
+- Efficient and optimized with minimal low-hanging fruit.
 
 ## Contribution
 
