@@ -56,13 +56,13 @@ jobs:
         run: cargo publish --token $CARGO_REGISTRY_TOKEN
 
       - name: List Target Directory Contents
-        run: ls -la target/release # Check if .crate files exist in release folder
+        run: ls -la target/package # Check if .crate files exist in package folder
 
       - name: Create GitHub Release
         id: gh_release
         uses: softprops/action-gh-release@v1
         with:
-          files: target/release/*.crate # Adjust if necessary
+          files: target/package/*.crate
         env:
           GITHUB_TOKEN: ${{ secrets.PUBLIC_PACKAGE_GITHUB_TOKEN }}
 
