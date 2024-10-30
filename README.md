@@ -128,7 +128,7 @@ There's a [status document](docs/status.md) which describes the current status a
 
 ## Tests
 
-Reference JSONata contains an extensive test suite with over 1000 tests. Currently, this implementation passes almost 800 of these. You can run them like this:
+Reference JSONata contains an extensive test suite with over 1,000 tests. Currently, this implementation passes almost 800 of these. You can run them like this:
 
 ```bash
 cargo test testsuite
