@@ -61,8 +61,6 @@ jobs:
       - name: Create GitHub Release
         id: gh_release
         uses: softprops/action-gh-release@v1
-        with:
-          files: target/package/*.crate
         env:
           GITHUB_TOKEN: ${{ secrets.PUBLIC_PACKAGE_GITHUB_TOKEN }}
 
