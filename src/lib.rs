@@ -146,6 +146,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("lookup", 2, fn_lookup);
         bind_native!("lowercase", 1, fn_lowercase);
         bind_native!("map", 2, fn_map);
+        bind_native!("matchRegex", 2, fn_match_regex);
         bind_native!("max", 1, fn_max);
         bind_native!("merge", 1, fn_merge);
         bind_native!("min", 1, fn_min);
@@ -710,5 +711,36 @@ mod tests {
 
         // Since the array contains only one element "data", it should return "data"
         assert_eq!(result.as_str(), "data"); // Expecting the string "data" as the result
+    }
+
+    #[test]
+    fn test_match_regex_with_jsonata() {
+        let arena = Bump::new();
+
+        // Test case with a valid postal code
+        let jsonata = JsonAta::new(r#"$matchRegex("123456789", "^[0-9]{9}$")"#, &arena).unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        // Assert that the result is the postal code itself, indicating a valid match
+        assert_eq!(result.as_str(), "123456789");
+
+        // Test case with an invalid postal code
+        let jsonata_invalid =
+            JsonAta::new(r#"$matchRegex("12345-6789", "^[0-9]{9}$")"#, &arena).unwrap();
+
+        let result_invalid = jsonata_invalid.evaluate(None, None);
+
+        // Check if an error occurred and ensure it contains the expected message
+        assert!(result_invalid.is_err());
+        if let Err(error) = result_invalid {
+            // The core error message to match against
+            let expected_message =
+                "Invalid format: '12345-6789' does not match the expected pattern '^[0-9]{9}$'";
+            assert!(
+                error.to_string().contains(expected_message),
+                "Unexpected error message: {}",
+                error
+            );
+        }
     }
 }
