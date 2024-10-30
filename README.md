@@ -14,15 +14,15 @@ From the JSONata website:
 - Lightweight query and transformation language for JSON data
 - Inspired by the location path semantics of XPath 3.1
 - Sophisticated query expressions with minimal syntax
-- Built in operators and functions for manipulating and combining data
+- Built-in operators and functions for manipulating and combining data
 - Create user-defined functions
 - Format query results into any JSON output structure
 
-Read the [full documentation](https://docs.jsonata.org/overview.html), and try it out in Stedi's [JSONata Playground](https://www.stedi.com/jsonata/playground).
+Read the [complete documentation](https://docs.jsonata.org/overview.html), and try it out in Stedi's [JSONata Playground](https://www.stedi.com/jsonata/playground).
 
 ## Getting started
 
-The API is currently not very ergonomic, as you need to provide a [`bumpalo`](https://github.com/fitzgen/bumpalo) arena for allocating values in.
+The API is not ergonomic, as you must provide a [`bumpalo`](https://github.com/fitzgen/bumpalo) arena.
 
 First, add the following to your `Cargo.toml`:
 
@@ -38,20 +38,21 @@ Then you can evaluate an expression with JSON input like this:
 use bumpalo::Bump;
 use jsonata_rs::JsonAta;
 
-// Create an arena for allocating values, this will go away in future except for advanced use cases
+// Create an arena for allocating values
 let arena = Bump::new();
 
-// Provide some JSON input, this could be read from a file or come from the network
-let input = "{ \"name\": \"world\" }";
+// Provide some JSON input. This could be read from a file or come from the network.
+let input = r#"{ "name": "world" }";
 
 // The JSONata expression to evaluate
-let expr = "\"Hello, \" & name & \"!\"";
+let expr = r#""Hello, " & name & "!"";
 
-// Parse the expression - this could fail
+// Parse the expression
 let jsonata = JsonAta::new(expr, &arena).unwrap();
 
-// Evaluate the expression against the input - this could fail
-let result = jsonata.evaluate(Some(input)).unwrap();
+// Evaluate the expression against the input. The second parameter should
+// contain any binding variables you want to be available during evaluations.
+let result = jsonata.evaluate(Some(input), None).unwrap();
 
 // Serialize the result into JSON
 println!("{}", result.serialize(false));
@@ -69,7 +70,7 @@ There's also a basic CLI tool:
 "Hello, world!"
 ```
 
-The expression and input can be specified on the command line, but that requires manual escaping. Alternatively, they can be provided from files. Here's the `--help` output:
+The expression and input can be specified on the command line, which requires manual escaping. Alternatively, they can be provided from files. Here's the `--help` output:
 
 ```
 # jsonata --help
@@ -95,7 +96,7 @@ ARGS:
 
 ## Missing (but planned) features
 
-There are a number of JSONata features which are not yet implemented:
+There are several JSONata features which are not yet implemented:
 
 - Many built-in functions are missing
 - Parent operator
@@ -107,7 +108,7 @@ There are a number of JSONata features which are not yet implemented:
 
 ### Function signatures are not supported
 
-Function signatures have their problems as described [here](docs/function-signatures.md), and are not supported by this implementation.
+Function signatures have problems as described [here](docs/function-signatures.md), and are not supported by this implementation.
 
 Most of the JSONata functions, however, support being passed the context as the first argument as dictated by their signature, e.g:
 
@@ -117,7 +118,7 @@ Most of the JSONata functions, however, support being passed the context as the 
 /* Output: ["el", "or"] */
 ```
 
-This is implemented in each built-in function itself. For example, if `$string` sees that it is called with no arguments, it will use the current context.
+This is implemented in each built-in function itself. For example, if `$string` sees that it is called without arguments, it will use the current context.
 
 In addition, for all the built-in functions, type checking of arguments is also implemented directly in the functions themselves so that you get equivalent runtime errors for passing the wrong things to these functions as you would in reference JSONata.
 
@@ -127,7 +128,7 @@ There's a [status document](docs/status.md) which describes the current status a
 
 ## Tests
 
-Reference JSONata contains an extensive test suite with over 1000 tests. Currently, this implementation passes over 600 of these, you can run them like this:
+Reference JSONata contains an extensive test suite with over 1000 tests. Currently, this implementation passes almost 800 of these. You can run them like this:
 
 ```bash
 cargo test testsuite
