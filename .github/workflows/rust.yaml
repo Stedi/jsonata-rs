@@ -50,7 +50,7 @@ jobs:
     needs: [tests, fmt_lint, test_wasm]
     # Skipping this results job results in a misleading status on PRs and in the queue,
     # so instead lets always return an explicit success or failure.
-    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    if: ${{ always() }}
     steps:
       - name: Collect results on success
         if: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
