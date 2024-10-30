@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.1.10](https://github.com/Stedi/jsonata-rs/compare/v0.1.9...v0.1.10) - 2024-10-30
+
+### Added
+
+- support a custom fn to handle regex pattern ([#97](https://github.com/Stedi/jsonata-rs/pull/97))
+
+### Other
+
+- clean up README.md and status.md ([#99](https://github.com/Stedi/jsonata-rs/pull/99))
+- add release-plz workflow ([#98](https://github.com/Stedi/jsonata-rs/pull/98))
+
 ### Added
 
 - Context and positional binds
