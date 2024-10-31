@@ -10,7 +10,7 @@ use hashbrown::HashMap;
 
 use super::frame::Frame;
 use super::functions::FunctionContext;
-use crate::parser::ast::{Ast, AstKind};
+use crate::parser::ast::{Ast, AstKind, RegexLiteral};
 use crate::{Error, Result};
 
 pub mod impls;
@@ -49,6 +49,7 @@ pub enum Value<'a> {
     Number(f64),
     Bool(bool),
     String(BumpString<'a>),
+    Regex(RegexLiteral),
     Array(BumpVec<'a, &'a Value<'a>>, ArrayFlags),
     Object(HashMap<BumpString<'a>, &'a Value<'a>, DefaultHashBuilder, &'a Bump>),
     Range(Range<'a>),
