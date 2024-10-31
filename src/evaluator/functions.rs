@@ -1,6 +1,7 @@
 use base64::Engine;
 use chrono::{TimeZone, Utc};
 use rand::Rng;
+use regex::Regex;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
 
@@ -1706,4 +1707,33 @@ pub fn fn_pad<'a>(
     };
 
     Ok(Value::string(context.arena, &result))
+}
+
+pub fn fn_match_regex<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    let value_to_validate = match args.first().copied() {
+        Some(val) if !val.is_undefined() => val,
+        _ => return Ok(Value::undefined()),
+    };
+    assert_arg!(value_to_validate.is_string(), context, 1);
+
+    let pattern_value = match args.get(1).copied() {
+        Some(val) if val.is_string() => val,
+        _ => return Err(Error::D3010EmptyPattern(context.char_index)),
+    };
+
+    let regex_pattern = Regex::new(&pattern_value.as_str())
+        .map_err(|_| Error::D3010EmptyPattern(context.char_index))?;
+
+    if regex_pattern.is_match(&value_to_validate.as_str()) {
+        Ok(value_to_validate) // Return input if it matches
+    } else {
+        Err(Error::D3137Error(format!(
+            "Invalid format: '{}' does not match the expected pattern '{}'",
+            value_to_validate.as_str(),
+            pattern_value.as_str()
+        )))
+    }
 }
