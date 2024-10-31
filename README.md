@@ -2,6 +2,7 @@
 
 [<img alt="crates.io" src="https://img.shields.io/crates/v/jsonata-rs?logo=rust&style=for-the-badge" height=22>](https://crates.io/crates/jsonata-rs)
 [<img alt="docs.rs" src="https://img.shields.io/docsrs/jsonata-rs?label=docs.rs&logo=docs.rs&style=for-the-badge" height=22>](https://docs.rs/jsonata-rs)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Stedi/jsonata-rs/badge)](https://scorecard.dev/viewer/?uri=github.com/Stedi/jsonata-rs)
 
 An (incomplete) implementation of [JSONata](https://jsonata.org) in Rust.
 
