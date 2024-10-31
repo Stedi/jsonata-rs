@@ -3,6 +3,7 @@ use std::{char, error, fmt};
 /// User-facing error codes and messages. These codes are defined in the Javascript implementation here:
 /// <https://github.com/jsonata-js/jsonata/blob/9e6b8e6d081e34fbd72fe24ccd703afa9248fec5/src/jsonata.js#L1941>
 #[derive(Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Error {
     // Compile time errors
     S0101UnterminatedStringLiteral(usize),
