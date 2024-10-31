@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.1.11](https://github.com/Stedi/jsonata-rs/compare/v0.1.10...v0.1.11) - 2024-10-31
+
+### Other
+
+- update secrets env var ([#103](https://github.com/Stedi/jsonata-rs/pull/103))
+
 ## [0.1.10](https://github.com/Stedi/jsonata-rs/compare/v0.1.9...v0.1.10) - 2024-10-31
 
 ### Added
