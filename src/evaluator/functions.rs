@@ -5,6 +5,7 @@ use regex::Regex;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
 use crate::datetime::{format_custom_date, parse_custom_format, parse_timezone_offset};
 use crate::parser::expressions::check_balanced_brackets;
@@ -1076,6 +1077,18 @@ pub fn fn_millis<'a>(
     Ok(Value::string(
         &context.arena,
         timestamp.as_millis().to_string().as_str(),
+    ))
+}
+
+pub fn fn_uuid<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 0);
+
+    Ok(Value::string(
+        &context.arena,
+        Uuid::new_v4().to_string().as_str(),
     ))
 }
 

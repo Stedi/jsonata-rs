@@ -172,6 +172,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("uppercase", 1, fn_uppercase);
         bind_native!("zip", 1, fn_zip);
         bind_native!("millis", 0, fn_millis);
+        bind_native!("uuid", 0, fn_uuid);
 
         let chain_ast = Some(parser::parse(
             "function($f, $g) { function($x){ $g($f($x)) } }",
