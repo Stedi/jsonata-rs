@@ -1,4 +1,5 @@
-use super::RegexLiteral;
+// Re-export for use in evaluator.
+pub use super::expressions::RegexLiteral;
 
 // Object constructor, represented by tuples of (key, value)
 pub type Object = Vec<(Ast, Ast)>;

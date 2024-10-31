@@ -1,9 +1,10 @@
 use std::char::decode_utf16;
-use std::ops::Deref;
 use std::str::Chars;
 use std::{char, str};
 
 use crate::{Error, Result};
+
+use super::RegexLiteral;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
@@ -69,38 +70,6 @@ pub enum TokenKind {
     // Identifiers
     Name(String),
     Var(String),
-}
-
-/// A wrapper type for a regex literal so that we can implement PartialEq
-#[derive(Debug, Clone)]
-pub struct RegexLiteral(regex::Regex);
-
-impl RegexLiteral {
-    fn new(
-        regex: &str,
-        case_insensitive: bool,
-        multi_line: bool,
-    ) -> std::result::Result<Self, regex::Error> {
-        regex::RegexBuilder::new(regex)
-            .case_insensitive(case_insensitive)
-            .multi_line(multi_line)
-            .build()
-            .map(Self)
-    }
-}
-
-impl Deref for RegexLiteral {
-    type Target = regex::Regex;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl PartialEq for RegexLiteral {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.as_str() == other.0.as_str()
-    }
 }
 
 impl std::fmt::Display for TokenKind {
@@ -440,11 +409,15 @@ impl<'a> Tokenizer<'a> {
                             }
                         }
 
-                        Regex(
-                            RegexLiteral::new(&buffer, case_insensitive, multi_line).map_err(
-                                |e| Error::S0303InvalidRegex(self.start_char_index, e.to_string()),
-                            )?,
-                        )
+                        let r = regex::RegexBuilder::new(&buffer)
+                            .case_insensitive(case_insensitive)
+                            .multi_line(multi_line)
+                            .build()
+                            .map_err(|e| {
+                                Error::S0303InvalidRegex(self.start_char_index, e.to_string())
+                            })?;
+
+                        Regex(RegexLiteral::new(r))
                     }
                     _ => ForwardSlash,
                 },
