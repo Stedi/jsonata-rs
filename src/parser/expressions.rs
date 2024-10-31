@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 pub fn check_balanced_brackets(expr: &str) -> Result<(), String> {
     let mut bracket_count = 0;
     let mut i = 0;
@@ -36,4 +38,28 @@ pub fn check_balanced_brackets(expr: &str) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// A wrapper type for a regex literal so that we can implement PartialEq
+#[derive(Debug, Clone)]
+pub struct RegexLiteral(regex::Regex);
+
+impl RegexLiteral {
+    pub(super) fn new(regex: regex::Regex) -> Self {
+        Self(regex)
+    }
+}
+
+impl Deref for RegexLiteral {
+    type Target = regex::Regex;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl PartialEq for RegexLiteral {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_str() == other.0.as_str()
+    }
 }
