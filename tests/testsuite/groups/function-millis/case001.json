@@ -1,0 +1,6 @@
+{
+    "expr": "$millis() & \"-SUFFIX\"",
+    "dataset": null,
+    "bindings": {},
+    "result_re": "(\\d+)-SUFFIX"
+}

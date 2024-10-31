@@ -53,7 +53,7 @@ impl<'a> JsonAta<'a> {
     }
 
     fn json_value_to_value(&self, json_value: &serde_json::Value) -> &'a mut Value<'a> {
-        return match json_value {
+        match json_value {
             serde_json::Value::Null => Value::null(self.arena),
             serde_json::Value::Bool(b) => self.arena.alloc(Value::Bool(*b)),
             serde_json::Value::Number(n) => Value::number(self.arena, n.as_f64().unwrap()),
@@ -65,16 +65,16 @@ impl<'a> JsonAta<'a> {
                     array.push(self.json_value_to_value(v))
                 }
 
-                return array;
+                array
             }
             serde_json::Value::Object(o) => {
                 let object = Value::object_with_capacity(self.arena, o.len());
                 for (k, v) in o.iter() {
                     object.insert(k, self.json_value_to_value(v));
                 }
-                return object;
+                object
             }
-        };
+        }
     }
 
     pub fn evaluate(
@@ -171,6 +171,8 @@ impl<'a> JsonAta<'a> {
         bind_native!("trim", 1, fn_trim);
         bind_native!("uppercase", 1, fn_uppercase);
         bind_native!("zip", 1, fn_zip);
+        bind_native!("millis", 0, fn_millis);
+        bind_native!("uuid", 0, fn_uuid);
 
         let chain_ast = Some(parser::parse(
             "function($f, $g) { function($x){ $g($f($x)) } }",
@@ -217,7 +219,7 @@ mod tests {
         let jsonata = JsonAta::new("$map([1,4,9,16], $squareroot)", &arena).unwrap();
         jsonata.register_function("squareroot", 1, |ctx, args| {
             let num = &args[0];
-            return Ok(Value::number(ctx.arena, (num.as_f64()).sqrt()));
+            Ok(Value::number(ctx.arena, (num.as_f64()).sqrt()))
         });
 
         let result = jsonata.evaluate(Some(r#"anything"#), None);
@@ -238,7 +240,7 @@ mod tests {
         let jsonata = JsonAta::new("$filter([1,4,9,16], $even)", &arena).unwrap();
         jsonata.register_function("even", 1, |_ctx, args| {
             let num = &args[0];
-            return Ok(Value::bool((num.as_f64()) % 2.0 == 0.0));
+            Ok(Value::bool((num.as_f64()) % 2.0 == 0.0))
         });
 
         let result = jsonata.evaluate(Some(r#"anything"#), None);
