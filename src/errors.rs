@@ -1,5 +1,7 @@
 use std::{char, error, fmt};
 
+/// User-facing error codes and messages. These codes are defined in the Javascript implementation here:
+/// <https://github.com/jsonata-js/jsonata/blob/9e6b8e6d081e34fbd72fe24ccd703afa9248fec5/src/jsonata.js#L1941>
 #[derive(Debug, PartialEq)]
 pub enum Error {
     // Compile time errors
@@ -22,6 +24,10 @@ pub enum Error {
     S0214ExpectedVarRight(usize, String),
     S0215BindingAfterPredicates(usize),
     S0216BindingAfterSort(usize),
+    S0301EmptyRegex(usize),
+    S0302UnterminatedRegex(usize),
+    // This variant is not present in the JS implementation
+    S0303InvalidRegex(usize, String),
 
     // Runtime errors
     D1001NumberOfOutRange(f64),
@@ -108,6 +114,9 @@ impl Error {
             Error::S0214ExpectedVarRight(..) => "S0214",
             Error::S0215BindingAfterPredicates(..) => "S0215",
             Error::S0216BindingAfterSort(..) => "S0216",
+            Error::S0301EmptyRegex(..) => "S0301",
+            Error::S0302UnterminatedRegex(..) => "S0302",
+            Error::S0303InvalidRegex(..) => "S0303",
 
             // Runtime errors
             Error::D1001NumberOfOutRange(..) => "D1001",
@@ -164,6 +173,8 @@ impl fmt::Display for Error {
 
         write!(f, "{} @ ", self.code())?;
 
+        // These messages come from the Javascript implementation:
+        // <https://github.com/jsonata-js/jsonata/blob/9e6b8e6d081e34fbd72fe24ccd703afa9248fec5/src/jsonata.js#L1941>
         match *self {
             // Compile time errors
             S0101UnterminatedStringLiteral(ref p) =>
@@ -204,6 +215,14 @@ impl fmt::Display for Error {
                 write!(f, "{}: A context variable binding must precede any predicates on a step", p),
             S0216BindingAfterSort(ref p) =>
                 write!(f, "{}: A context variable binding must precede the 'order-by' clause on a step", p),
+            S0301EmptyRegex(ref p) =>
+                write!(f, "{}: Empty regular expressions are not allowed", p),
+            S0302UnterminatedRegex(ref p) =>
+                write!(f, "{}: No terminating / in regular expression", p),
+            S0303InvalidRegex(ref p, ref message) =>
+                // The error message from `regex::Regex` a "regex parse error: " prefix, so don't be redundant here.
+                write!(f, "{}: {}", p, message),
+
             // Runtime errors
             D1001NumberOfOutRange(ref n) => write!(f, "Number out of range: {}", n),
             D1002NegatingNonNumeric(ref p, ref v) =>
