@@ -108,7 +108,7 @@ fn test_case(resource: &str) {
                         } else if case["result_re"].is_string() {
                             // Ability to define a regular expression to match the result. This strategy is useful
                             // to validate the result of an expression that's not deterministic (like the $millis() function).
-                            let regex_pattern = Regex::new(&case["result_re"].as_str().to_string())
+                            let regex_pattern = Regex::new(case["result_re"].as_str().as_ref())
                                 .expect("Should have a valid regex expression");
 
                             assert!(

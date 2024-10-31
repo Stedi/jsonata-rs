@@ -37,7 +37,9 @@ pub const UNDEFINED: Value = Value::Undefined;
 pub const TRUE: Value = Value::Bool(true);
 pub const FALSE: Value = Value::Bool(false);
 
-/// The core value type for input, output and evaluation. There's a lot of lifetimes here to avoid
+/// The core value type for input, output and evaluation.
+///
+/// There's a lot of lifetimes here to avoid
 /// cloning any part of the input that should be kept in the output, avoiding heap allocations for
 /// every Value, and allowing structural sharing.
 ///

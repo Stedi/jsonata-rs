@@ -1075,7 +1075,7 @@ pub fn fn_millis<'a>(
     // Turning the timestamp to a string given that the stable millis function
     // returns a u128 and the `Value::number` only supports f64.
     Ok(Value::string(
-        &context.arena,
+        context.arena,
         timestamp.as_millis().to_string().as_str(),
     ))
 }
@@ -1087,7 +1087,7 @@ pub fn fn_uuid<'a>(
     max_args!(context, args, 0);
 
     Ok(Value::string(
-        &context.arena,
+        context.arena,
         Uuid::new_v4().to_string().as_str(),
     ))
 }
