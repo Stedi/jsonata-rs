@@ -1,0 +1,6 @@
+{
+    "expr": "$millis()",
+    "dataset": null,
+    "bindings": {},
+    "result_re": "(\\d+)"
+}
