@@ -1,5 +1,6 @@
 use base64::Engine;
 use chrono::{TimeZone, Utc};
+use hashbrown::{DefaultHashBuilder, HashMap};
 use rand::Rng;
 use regex::Regex;
 use std::borrow::{Borrow, Cow};
@@ -11,6 +12,7 @@ use crate::datetime::{format_custom_date, parse_custom_format, parse_timezone_of
 use crate::parser::expressions::check_balanced_brackets;
 
 use bumpalo::collections::CollectIn;
+use bumpalo::collections::String as BumpString;
 use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
 
@@ -1742,7 +1744,7 @@ pub fn fn_pad<'a>(
     Ok(Value::string(context.arena, &result))
 }
 
-pub fn fn_match_regex<'a>(
+pub fn fn_match<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
@@ -1753,20 +1755,72 @@ pub fn fn_match_regex<'a>(
     assert_arg!(value_to_validate.is_string(), context, 1);
 
     let pattern_value = match args.get(1).copied() {
-        Some(val) if val.is_string() => val,
+        Some(val) => val,
         _ => return Err(Error::D3010EmptyPattern(context.char_index)),
     };
 
-    let regex_pattern = Regex::new(&pattern_value.as_str())
-        .map_err(|_| Error::D3010EmptyPattern(context.char_index))?;
+    let regex_pattern = match pattern_value {
+        Value::Regex(ref regex_literal) => regex_literal,
+        Value::String(ref s) => {
+            &Regex::new(s.as_ref()).map_err(|_| Error::D3010EmptyPattern(context.char_index))?
+        }
+        _ => return Err(Error::D3010EmptyPattern(context.char_index)),
+    };
 
-    if regex_pattern.is_match(&value_to_validate.as_str()) {
-        Ok(value_to_validate) // Return input if it matches
+    let limit = if let Some(limit_value) = args.get(2) {
+        if limit_value.is_number() {
+            Some(limit_value.as_f64() as usize)
+        } else {
+            None
+        }
     } else {
-        Err(Error::D3137Error(format!(
-            "Invalid format: '{}' does not match the expected pattern '{}'",
-            value_to_validate.as_str(),
-            pattern_value.as_str()
-        )))
+        None
+    };
+
+    let mut matches: bumpalo::collections::Vec<&Value<'a>> =
+        bumpalo::collections::Vec::new_in(context.arena);
+    for (i, caps) in regex_pattern
+        .captures_iter(&value_to_validate.as_str())
+        .enumerate()
+    {
+        if let Some(limit) = limit {
+            if i >= limit {
+                break;
+            }
+        }
+
+        // Process groups
+        let mut group_vec = bumpalo::collections::Vec::new_in(context.arena);
+        for matched in caps.iter().skip(1).flatten() {
+            let allocated_string: &Value = context
+                .arena
+                .alloc(Value::string(context.arena, matched.as_str()));
+            group_vec.push(allocated_string); // Push as &Value<'_>
+        }
+
+        let match_str: &Value = context
+            .arena
+            .alloc(Value::string(context.arena, caps.get(0).unwrap().as_str()));
+        let index_val: &Value = context.arena.alloc(Value::number(
+            context.arena,
+            caps.get(0).unwrap().start() as f64,
+        ));
+        let groups_val: &Value = context
+            .arena
+            .alloc(Value::Array(group_vec, ArrayFlags::empty()));
+
+        // Manually create the HashMap with the custom allocator and hasher
+        let mut match_obj: HashMap<BumpString, &Value, DefaultHashBuilder, &Bump> =
+            HashMap::with_capacity_and_hasher_in(3, DefaultHashBuilder::default(), context.arena);
+        match_obj.insert(BumpString::from_str_in("match", context.arena), match_str);
+        match_obj.insert(BumpString::from_str_in("index", context.arena), index_val);
+        match_obj.insert(BumpString::from_str_in("groups", context.arena), groups_val);
+
+        matches.push(context.arena.alloc(Value::Object(match_obj)));
     }
+
+    // Return an array of match objects
+    Ok(context
+        .arena
+        .alloc(Value::Array(matches, ArrayFlags::empty())))
 }
