@@ -1767,60 +1767,62 @@ pub fn fn_match<'a>(
         _ => return Err(Error::D3010EmptyPattern(context.char_index)),
     };
 
-    let limit = if let Some(limit_value) = args.get(2) {
-        if limit_value.is_number() {
-            Some(limit_value.as_f64() as usize)
-        } else {
-            None
-        }
-    } else {
-        None
-    };
+    let limit = args
+        .get(2)
+        .and_then(|val| {
+            if val.is_number() {
+                Some(val.as_f64() as usize)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(usize::MAX);
+
+    let key_match = BumpString::from_str_in("match", context.arena);
+    let key_index = BumpString::from_str_in("index", context.arena);
+    let key_groups = BumpString::from_str_in("groups", context.arena);
 
     let mut matches: bumpalo::collections::Vec<&Value<'a>> =
         bumpalo::collections::Vec::new_in(context.arena);
+
     for (i, caps) in regex_pattern
         .captures_iter(&value_to_validate.as_str())
         .enumerate()
     {
-        if let Some(limit) = limit {
-            if i >= limit {
-                break;
-            }
+        if i >= limit {
+            break;
         }
 
-        // Process groups
-        let mut group_vec = bumpalo::collections::Vec::new_in(context.arena);
+        let mut group_vec: bumpalo::collections::Vec<&Value<'a>> =
+            bumpalo::collections::Vec::new_in(context.arena);
         for matched in caps.iter().skip(1).flatten() {
-            let allocated_string: &Value = context
+            let allocated_string = context
                 .arena
                 .alloc(Value::string(context.arena, matched.as_str()));
-            group_vec.push(allocated_string); // Push as &Value<'_>
+            group_vec.push(*allocated_string);
         }
 
-        let match_str: &Value = context
+        let match_str = &*context
             .arena
             .alloc(Value::string(context.arena, caps.get(0).unwrap().as_str()));
-        let index_val: &Value = context.arena.alloc(Value::number(
+        let index_val = &*context.arena.alloc(Value::number(
             context.arena,
             caps.get(0).unwrap().start() as f64,
         ));
-        let groups_val: &Value = context
+        let groups_val = &*context
             .arena
             .alloc(Value::Array(group_vec, ArrayFlags::empty()));
 
-        // Manually create the HashMap with the custom allocator and hasher
-        let mut match_obj: HashMap<BumpString, &Value, DefaultHashBuilder, &Bump> =
+        let mut match_obj: HashMap<BumpString, &Value<'a>, DefaultHashBuilder, &Bump> =
             HashMap::with_capacity_and_hasher_in(3, DefaultHashBuilder::default(), context.arena);
-        match_obj.insert(BumpString::from_str_in("match", context.arena), match_str);
-        match_obj.insert(BumpString::from_str_in("index", context.arena), index_val);
-        match_obj.insert(BumpString::from_str_in("groups", context.arena), groups_val);
+        match_obj.insert(key_match.clone(), match_str);
+        match_obj.insert(key_index.clone(), index_val);
+        match_obj.insert(key_groups.clone(), groups_val);
 
-        matches.push(context.arena.alloc(Value::Object(match_obj)));
+        matches.push(&*context.arena.alloc(Value::Object(match_obj)));
     }
 
-    // Return an array of match objects
-    Ok(context
+    Ok(&*context
         .arena
         .alloc(Value::Array(matches, ArrayFlags::empty())))
 }
