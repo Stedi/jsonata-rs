@@ -7,3 +7,4 @@ Cargo.lock
 **/Cargo.toml
 .github/**/*.yml
 .github/**/*.yaml
+CHANGELOG.md
