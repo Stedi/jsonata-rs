@@ -1,0 +1,9 @@
+* @Stedi/core
+
+# Allow bots to modify the files without the need to review PRs
+
+Cargo.toml
+Cargo.lock
+**/Cargo.toml
+.github/**/*.yml
+.github/**/*.yaml
