@@ -183,6 +183,7 @@ pub fn fn_boolean<'a>(
                 Value::bool(false)
             }
         },
+        Value::Regex(_) => Value::bool(true),
         Value::Lambda { .. } | Value::NativeFn { .. } | Value::Transformer { .. } => {
             Value::bool(false)
         }

@@ -18,6 +18,7 @@ impl<'a> PartialEq<Value<'a>> for Value<'a> {
             (Value::Array(l, ..), Value::Array(r, ..)) => *l == *r,
             (Value::Object(l), Value::Object(r)) => *l == *r,
             (Value::Range(l), Value::Range(r)) => *l == *r,
+            (Value::Regex(l), Value::Regex(r)) => l == r,
             _ => false,
         }
     }
@@ -91,6 +92,7 @@ impl std::fmt::Debug for Value<'_> {
             Self::String(s) => s.fmt(f),
             Self::Array(a, _) => a.fmt(f),
             Self::Object(o) => o.fmt(f),
+            Self::Regex(r) => write!(f, "<regex({:?})>", r),
             Self::Lambda { .. } => write!(f, "<lambda>"),
             Self::NativeFn { .. } => write!(f, "<nativefn>"),
             Self::Transformer { .. } => write!(f, "<transformer>"),
@@ -101,7 +103,10 @@ impl std::fmt::Debug for Value<'_> {
 
 impl std::fmt::Display for Value<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#?}", self)
+        match self {
+            Self::Regex(r) => write!(f, "<regex({:?})>", r),
+            _ => write!(f, "{:#?}", self),
+        }
     }
 }
 
@@ -123,6 +128,7 @@ impl Hash for Value<'_> {
                     map.get(key).hash(state);
                 }
             }
+            Value::Regex(r) => r.hash(state),
             Value::Range(r) => r.hash(state),
             Value::Lambda { .. } => generate_random_hash(state),
             Value::NativeFn { name, .. } => name.hash(state),

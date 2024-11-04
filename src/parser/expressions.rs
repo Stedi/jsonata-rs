@@ -1,3 +1,4 @@
+use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 
 pub fn check_balanced_brackets(expr: &str) -> Result<(), String> {
@@ -61,5 +62,11 @@ impl Deref for RegexLiteral {
 impl PartialEq for RegexLiteral {
     fn eq(&self, other: &Self) -> bool {
         self.0.as_str() == other.0.as_str()
+    }
+}
+
+impl Hash for RegexLiteral {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.as_str().hash(state);
     }
 }
