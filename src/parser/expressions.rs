@@ -1,3 +1,4 @@
+use regress::Regex;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 
@@ -41,32 +42,71 @@ pub fn check_balanced_brackets(expr: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// A wrapper type for a regex literal so that we can implement PartialEq
 #[derive(Debug, Clone)]
-pub struct RegexLiteral(regex::Regex);
+pub struct RegexLiteral {
+    regex: Regex,
+    pattern: String, // Store the original pattern string for comparisons
+}
 
 impl RegexLiteral {
-    pub(super) fn new(regex: regex::Regex) -> Self {
-        Self(regex)
+    /// Create a new `RegexLiteral` with optional case-insensitive and multiline flags.
+    pub fn new(
+        pattern: &str,
+        case_insensitive: bool,
+        multi_line: bool,
+    ) -> Result<Self, regress::Error> {
+        // Add flags to the pattern string as needed
+        let mut adjusted_pattern = String::new();
+        if case_insensitive {
+            adjusted_pattern.push_str("(?i)");
+        }
+        if multi_line {
+            adjusted_pattern.push_str("(?m)");
+        }
+        adjusted_pattern.push_str(pattern);
+
+        let regex = Regex::new(&adjusted_pattern)?;
+
+        Ok(Self {
+            regex,
+            pattern: pattern.to_string(),
+        })
+    }
+
+    /// Check if the regex pattern matches a given text.
+    pub fn is_match(&self, text: &str) -> bool {
+        self.regex.find(text).is_some()
+    }
+
+    /// Retrieve the original pattern string for display purposes.
+    pub fn as_pattern(&self) -> &str {
+        &self.pattern
+    }
+
+    /// Get a reference to the inner `regress::Regex`.
+    pub fn get_regex(&self) -> &Regex {
+        &self.regex
     }
 }
 
 impl Deref for RegexLiteral {
-    type Target = regex::Regex;
+    type Target = Regex;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.regex
     }
 }
 
 impl PartialEq for RegexLiteral {
     fn eq(&self, other: &Self) -> bool {
-        self.0.as_str() == other.0.as_str()
+        self.pattern == other.pattern
     }
 }
 
+impl Eq for RegexLiteral {}
+
 impl Hash for RegexLiteral {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.as_str().hash(state);
+        self.pattern.hash(state);
     }
 }

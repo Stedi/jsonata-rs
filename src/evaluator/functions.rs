@@ -2,13 +2,13 @@ use base64::Engine;
 use chrono::{TimeZone, Utc};
 use hashbrown::{DefaultHashBuilder, HashMap};
 use rand::Rng;
-use regex::Regex;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 use crate::datetime::{format_custom_date, parse_custom_format, parse_timezone_offset};
+use crate::evaluator::RegexLiteral;
 use crate::parser::expressions::check_balanced_brackets;
 
 use bumpalo::collections::CollectIn;
@@ -1759,10 +1759,12 @@ pub fn fn_match<'a>(
         _ => return Err(Error::D3010EmptyPattern(context.char_index)),
     };
 
-    let regex_pattern = match pattern_value {
+    let regex_literal = match pattern_value {
         Value::Regex(ref regex_literal) => regex_literal,
         Value::String(ref s) => {
-            &Regex::new(s.as_ref()).map_err(|_| Error::D3010EmptyPattern(context.char_index))?
+            let regex = RegexLiteral::new(s.as_str(), false, false)
+                .map_err(|_| Error::D3010EmptyPattern(context.char_index))?;
+            &*context.arena.alloc(regex)
         }
         _ => return Err(Error::D3010EmptyPattern(context.char_index)),
     };
@@ -1785,31 +1787,27 @@ pub fn fn_match<'a>(
     let mut matches: bumpalo::collections::Vec<&Value<'a>> =
         bumpalo::collections::Vec::new_in(context.arena);
 
-    for (i, caps) in regex_pattern
-        .captures_iter(&value_to_validate.as_str())
+    for (i, m) in regex_literal
+        .get_regex()
+        .find_iter(&value_to_validate.as_str())
         .enumerate()
     {
         if i >= limit {
             break;
         }
 
-        let mut group_vec: bumpalo::collections::Vec<&Value<'a>> =
-            bumpalo::collections::Vec::new_in(context.arena);
-        for matched in caps.iter().skip(1).flatten() {
-            let allocated_string = context
-                .arena
-                .alloc(Value::string(context.arena, matched.as_str()));
-            group_vec.push(*allocated_string);
-        }
-
-        let match_str = &*context
+        let matched_text = &value_to_validate.as_str()[m.start()..m.end()];
+        let match_str = context
             .arena
-            .alloc(Value::string(context.arena, caps.get(0).unwrap().as_str()));
-        let index_val = &*context.arena.alloc(Value::number(
-            context.arena,
-            caps.get(0).unwrap().start() as f64,
-        ));
-        let groups_val = &*context
+            .alloc(Value::string(context.arena, matched_text));
+
+        let index_val = context
+            .arena
+            .alloc(Value::number(context.arena, m.start() as f64));
+
+        let group_vec: bumpalo::collections::Vec<&Value<'a>> =
+            bumpalo::collections::Vec::new_in(context.arena);
+        let groups_val = context
             .arena
             .alloc(Value::Array(group_vec, ArrayFlags::empty()));
 
@@ -1819,10 +1817,10 @@ pub fn fn_match<'a>(
         match_obj.insert(key_index.clone(), index_val);
         match_obj.insert(key_groups.clone(), groups_val);
 
-        matches.push(&*context.arena.alloc(Value::Object(match_obj)));
+        matches.push(context.arena.alloc(Value::Object(match_obj)));
     }
 
-    Ok(&*context
+    Ok(context
         .arena
         .alloc(Value::Array(matches, ArrayFlags::empty())))
 }

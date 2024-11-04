@@ -221,7 +221,7 @@ impl fmt::Display for Error {
             S0302UnterminatedRegex(ref p) =>
                 write!(f, "{}: No terminating / in regular expression", p),
             S0303InvalidRegex(ref p, ref message) =>
-                // The error message from `regex::Regex` a "regex parse error: " prefix, so don't be redundant here.
+                // The error message from `regress::Regex` a "regex parse error: " prefix, so don't be redundant here.
                 write!(f, "{}: {}", p, message),
 
             // Runtime errors
