@@ -56,17 +56,14 @@ impl RegexLiteral {
         multi_line: bool,
     ) -> Result<Self, regress::Error> {
         // Add flags to the pattern string as needed
-        let mut adjusted_pattern = String::new();
+        let mut flags = String::new();
         if case_insensitive {
-            adjusted_pattern.push_str("(?i)");
+            flags.push('i');
         }
         if multi_line {
-            adjusted_pattern.push_str("(?m)");
+            flags.push('m');
         }
-        adjusted_pattern.push_str(pattern);
-
-        let regex = Regex::new(&adjusted_pattern)?;
-
+        let regex = Regex::with_flags(pattern, flags.as_str())?;
         Ok(Self {
             regex,
             pattern: pattern.to_string(),

@@ -894,23 +894,34 @@ mod tests {
     #[test]
     fn regex_with_flags() {
         // Case-insensitive flag test with basic pattern
-        let pattern = "^[a-z]+$";
-        let regex = regress::Regex::with_flags(pattern, "i")
-            .expect("Failed to compile regex with case-insensitive flag");
-        assert!(regex.find("ABC").is_some()); // Case-insensitive match
-        assert!(regex.find("\nABC\n").is_none()); // Multiline not enabled
+        let kind = Tokenizer::new("/^[a-z]+$/i").next_token().unwrap().kind;
+        if let TokenKind::Regex(r) = kind {
+            // There's not a function on the `regress::Regex` to check its flags directly.
+            assert!(r.is_match("ABC"));
+            assert!(!r.is_match("\nABC\n"));
+        } else {
+            panic!("Expected regex token")
+        };
 
         // Multiline flag test with simple pattern
-        let regex = regress::Regex::with_flags(pattern, "m")
-            .expect("Failed to compile regex with multiline flag");
-        assert!(regex.find("ABC").is_none()); // Case-sensitive
-        assert!(regex.find("\nabc\n").is_some()); // Multiline mode allows match across lines
+        let kind = Tokenizer::new("/^[a-z]+$/m").next_token().unwrap().kind;
+        if let TokenKind::Regex(r) = kind {
+            // There's not a function on the `regress::Regex` to check its flags directly.
+            assert!(!r.is_match("ABC"));
+            assert!(r.is_match("\nabc\n"));
+        } else {
+            panic!("Expected regex token")
+        };
 
         // Case-insensitive and multiline flags together
-        let regex = regress::Regex::with_flags(pattern, "im")
-            .expect("Failed to compile regex with both flags");
-        assert!(regex.find("ABC").is_some()); // Case-insensitive
-        assert!(regex.find("\nABC\n").is_some()); // Multiline
+        let kind = Tokenizer::new("/^[a-z]+$/im").next_token().unwrap().kind;
+        if let TokenKind::Regex(r) = kind {
+            // There's not a function on the `regress::Regex` to check its flags directly.
+            assert!(r.is_match("ABC"));
+            assert!(r.is_match("\nABC\n"));
+        } else {
+            panic!("Expected regex token")
+        };
     }
 
     /// To verify we don't mistake a division operator for a regex
