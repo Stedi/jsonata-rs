@@ -1,16 +1,18 @@
 use base64::Engine;
 use chrono::{TimeZone, Utc};
+use hashbrown::{DefaultHashBuilder, HashMap};
 use rand::Rng;
-use regex::Regex;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 use crate::datetime::{format_custom_date, parse_custom_format, parse_timezone_offset};
+use crate::evaluator::RegexLiteral;
 use crate::parser::expressions::check_balanced_brackets;
 
 use bumpalo::collections::CollectIn;
+use bumpalo::collections::String as BumpString;
 use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
 
@@ -185,6 +187,7 @@ pub fn fn_boolean<'a>(
                 Value::bool(false)
             }
         },
+        Value::Regex(_) => Value::bool(true),
         Value::Lambda { .. } | Value::NativeFn { .. } | Value::Transformer { .. } => {
             Value::bool(false)
         }
@@ -1741,7 +1744,7 @@ pub fn fn_pad<'a>(
     Ok(Value::string(context.arena, &result))
 }
 
-pub fn fn_match_regex<'a>(
+pub fn fn_match<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
 ) -> Result<&'a Value<'a>> {
@@ -1752,20 +1755,72 @@ pub fn fn_match_regex<'a>(
     assert_arg!(value_to_validate.is_string(), context, 1);
 
     let pattern_value = match args.get(1).copied() {
-        Some(val) if val.is_string() => val,
+        Some(val) => val,
         _ => return Err(Error::D3010EmptyPattern(context.char_index)),
     };
 
-    let regex_pattern = Regex::new(&pattern_value.as_str())
-        .map_err(|_| Error::D3010EmptyPattern(context.char_index))?;
+    let regex_literal = match pattern_value {
+        Value::Regex(ref regex_literal) => regex_literal,
+        Value::String(ref s) => {
+            let regex = RegexLiteral::new(s.as_str(), false, false)
+                .map_err(|_| Error::D3010EmptyPattern(context.char_index))?;
+            &*context.arena.alloc(regex)
+        }
+        _ => return Err(Error::D3010EmptyPattern(context.char_index)),
+    };
 
-    if regex_pattern.is_match(&value_to_validate.as_str()) {
-        Ok(value_to_validate) // Return input if it matches
-    } else {
-        Err(Error::D3137Error(format!(
-            "Invalid format: '{}' does not match the expected pattern '{}'",
-            value_to_validate.as_str(),
-            pattern_value.as_str()
-        )))
+    let limit = args
+        .get(2)
+        .and_then(|val| {
+            if val.is_number() {
+                Some(val.as_f64() as usize)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(usize::MAX);
+
+    let key_match = BumpString::from_str_in("match", context.arena);
+    let key_index = BumpString::from_str_in("index", context.arena);
+    let key_groups = BumpString::from_str_in("groups", context.arena);
+
+    let mut matches: bumpalo::collections::Vec<&Value<'a>> =
+        bumpalo::collections::Vec::new_in(context.arena);
+
+    for (i, m) in regex_literal
+        .get_regex()
+        .find_iter(&value_to_validate.as_str())
+        .enumerate()
+    {
+        if i >= limit {
+            break;
+        }
+
+        let matched_text = &value_to_validate.as_str()[m.start()..m.end()];
+        let match_str = context
+            .arena
+            .alloc(Value::string(context.arena, matched_text));
+
+        let index_val = context
+            .arena
+            .alloc(Value::number(context.arena, m.start() as f64));
+
+        let group_vec: bumpalo::collections::Vec<&Value<'a>> =
+            bumpalo::collections::Vec::new_in(context.arena);
+        let groups_val = context
+            .arena
+            .alloc(Value::Array(group_vec, ArrayFlags::empty()));
+
+        let mut match_obj: HashMap<BumpString, &Value<'a>, DefaultHashBuilder, &Bump> =
+            HashMap::with_capacity_and_hasher_in(3, DefaultHashBuilder::default(), context.arena);
+        match_obj.insert(key_match.clone(), match_str);
+        match_obj.insert(key_index.clone(), index_val);
+        match_obj.insert(key_groups.clone(), groups_val);
+
+        matches.push(context.arena.alloc(Value::Object(match_obj)));
     }
+
+    Ok(context
+        .arena
+        .alloc(Value::Array(matches, ArrayFlags::empty())))
 }

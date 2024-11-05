@@ -10,7 +10,7 @@ use hashbrown::HashMap;
 
 use super::frame::Frame;
 use super::functions::FunctionContext;
-use crate::parser::ast::{Ast, AstKind};
+use crate::parser::ast::{Ast, AstKind, RegexLiteral};
 use crate::{Error, Result};
 
 pub mod impls;
@@ -51,6 +51,7 @@ pub enum Value<'a> {
     Number(f64),
     Bool(bool),
     String(BumpString<'a>),
+    Regex(RegexLiteral),
     Array(BumpVec<'a, &'a Value<'a>>, ArrayFlags),
     Object(HashMap<BumpString<'a>, &'a Value<'a>, DefaultHashBuilder, &'a Bump>),
     Range(Range<'a>),
@@ -309,6 +310,7 @@ impl<'a> Value<'a> {
                 }
             },
             Value::Object(ref o) => !o.is_empty(),
+            Value::Regex(_) => true, // Treat Regex as truthy if it exists
             Value::Lambda { .. } | Value::NativeFn { .. } | Value::Transformer { .. } => false,
             Value::Range(ref r) => !r.is_empty(),
         }
@@ -516,6 +518,7 @@ impl<'a> Value<'a> {
                 delete,
             } => Value::transformer(arena, pattern, update, delete),
             Self::Range(range) => Value::range_from(arena, range),
+            Self::Regex(regex) => arena.alloc(Value::Regex(regex.clone())),
         }
     }
 

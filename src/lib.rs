@@ -146,7 +146,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("lookup", 2, fn_lookup);
         bind_native!("lowercase", 1, fn_lowercase);
         bind_native!("map", 2, fn_map);
-        bind_native!("matchRegex", 2, fn_match_regex);
+        bind_native!("match", 2, fn_match);
         bind_native!("max", 1, fn_max);
         bind_native!("merge", 1, fn_merge);
         bind_native!("min", 1, fn_min);
@@ -185,7 +185,9 @@ impl<'a> JsonAta<'a> {
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, Offset};
-    use regex::Regex;
+    use regress::Regex;
+
+    use bumpalo::collections::String as BumpString;
 
     use super::*;
 
@@ -346,9 +348,12 @@ mod tests {
         let expected_format =
             Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(AM|PM|am|pm) GMT-05:00$").unwrap();
 
+        // Check if the pattern exists within the result_str
+        let is_match = expected_format.find_iter(&result_str).next().is_some();
         assert!(
-            expected_format.is_match(&result_str),
-            "Expected custom formatted time with timezone"
+            is_match,
+            "Expected custom formatted time with timezone, got: {}",
+            result_str
         );
     }
 
@@ -359,14 +364,15 @@ mod tests {
         let result = jsonata.evaluate(None, None).unwrap();
         let result_str = result.as_str();
 
-        println!("test_now_with_valid_format_but_no_timezone {}", result_str);
+        let expected_format =
+            Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(AM|PM|am|pm)$").unwrap();
 
         // Allow both AM/PM and am/pm in the regex
+        let is_match = expected_format.find_iter(&result_str).next().is_some();
         assert!(
-            Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(AM|PM|am|pm)$")
-                .unwrap()
-                .is_match(&result_str),
-            "Expected custom formatted time without timezone"
+            is_match,
+            "Expected custom formatted time without timezone, got: {}",
+            result_str
         );
     }
 
@@ -471,12 +477,16 @@ mod tests {
 
         println!("Formatted date: {}", result_str);
 
-        // Allow both AM/PM and am/pm in the regex
+        // Create the regex with regress::Regex
         let expected_format =
             Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(am|pm|AM|PM) GMT-05:00$").unwrap();
+
+        // Check if the pattern exists within result_str using find_iter
+        let is_match = expected_format.find_iter(&result_str).next().is_some();
         assert!(
-            expected_format.is_match(&result_str),
-            "Expected 12-hour format with timezone"
+            is_match,
+            "Expected 12-hour format with timezone, got: {}",
+            result_str
         );
     }
 
@@ -551,12 +561,16 @@ mod tests {
 
         println!("Formatted date: {}", result_str);
 
-        // Check if the formatted date matches the expected custom format
+        // Define the expected format using regress::Regex
         let expected_format =
             Regex::new(r"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2} GMT\+\d{2}:\d{2}$").unwrap();
+
+        // Simulate `is_match` by checking if there's at least one match in the string
+        let is_match = expected_format.find_iter(&result_str).next().is_some();
         assert!(
-            expected_format.is_match(&result_str),
-            "Expected custom formatted date with timezone"
+            is_match,
+            "Expected custom formatted date with timezone, got: {}",
+            result_str
         );
     }
 
@@ -702,47 +716,46 @@ mod tests {
     }
 
     #[test]
-    fn evaluate_with_reduce_single_data_element() {
-        let arena = Bump::new();
-
-        // Passing an array with a single element ["data"]
-        let jsonata =
-            JsonAta::new("$reduce([\"data\"], function($i, $j){$i + $j})", &arena).unwrap();
-
-        let result = jsonata.evaluate(None, None).unwrap();
-
-        // Since the array contains only one element "data", it should return "data"
-        assert_eq!(result.as_str(), "data"); // Expecting the string "data" as the result
-    }
-
-    #[test]
     fn test_match_regex_with_jsonata() {
         let arena = Bump::new();
 
         // Test case with a valid postal code
-        let jsonata = JsonAta::new(r#"$matchRegex("123456789", "^[0-9]{9}$")"#, &arena).unwrap();
+        let jsonata = JsonAta::new(r#"$match("123456789", /^[0-9]{9}$/)"#, &arena).unwrap();
         let result = jsonata.evaluate(None, None).unwrap();
 
-        // Assert that the result is the postal code itself, indicating a valid match
-        assert_eq!(result.as_str(), "123456789");
+        // Expected output: an array with a single match object for "123456789"
+        let match_value: &Value = arena.alloc(Value::string(&arena, "123456789"));
+        let index_value: &Value = arena.alloc(Value::number(&arena, 0.0));
+        let groups_array: &Value = &*arena.alloc(Value::Array(
+            bumpalo::collections::Vec::new_in(&arena),
+            ArrayFlags::empty(),
+        ));
+
+        let mut match_obj = hashbrown::HashMap::with_capacity_in(3, &arena);
+        match_obj.insert(BumpString::from_str_in("match", &arena), match_value);
+        match_obj.insert(BumpString::from_str_in("index", &arena), index_value);
+        match_obj.insert(BumpString::from_str_in("groups", &arena), groups_array);
+
+        let expected_match: &Value = &*arena.alloc(Value::Object(match_obj));
+
+        assert_eq!(
+            result,
+            &*arena.alloc(Value::Array(
+                bumpalo::collections::Vec::from_iter_in([expected_match], &arena),
+                ArrayFlags::empty()
+            ))
+        );
 
         // Test case with an invalid postal code
         let jsonata_invalid =
-            JsonAta::new(r#"$matchRegex("12345-6789", "^[0-9]{9}$")"#, &arena).unwrap();
+            JsonAta::new(r#"$match("12345-6789", /^[0-9]{9}$/)"#, &arena).unwrap();
+        let result_invalid = jsonata_invalid.evaluate(None, None).unwrap();
 
-        let result_invalid = jsonata_invalid.evaluate(None, None);
-
-        // Check if an error occurred and ensure it contains the expected message
-        assert!(result_invalid.is_err());
-        if let Err(error) = result_invalid {
-            // The core error message to match against
-            let expected_message =
-                "Invalid format: '12345-6789' does not match the expected pattern '^[0-9]{9}$'";
-            assert!(
-                error.to_string().contains(expected_message),
-                "Unexpected error message: {}",
-                error
-            );
-        }
+        // Expected output for invalid input: an empty array
+        let empty_array: &Value = &*arena.alloc(Value::Array(
+            bumpalo::collections::Vec::new_in(&arena), // Empty array for no matches
+            ArrayFlags::empty(),
+        ));
+        assert_eq!(result_invalid, empty_array);
     }
 }

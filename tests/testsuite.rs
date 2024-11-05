@@ -3,7 +3,6 @@ extern crate test_generator;
 
 use bumpalo::Bump;
 use jsonata_rs::{ArrayFlags, JsonAta, Value};
-use regex::Regex;
 use std::fs;
 use std::path;
 
@@ -108,11 +107,12 @@ fn test_case(resource: &str) {
                         } else if case["result_re"].is_string() {
                             // Ability to define a regular expression to match the result. This strategy is useful
                             // to validate the result of an expression that's not deterministic (like the $millis() function).
-                            let regex_pattern = Regex::new(case["result_re"].as_str().as_ref())
-                                .expect("Should have a valid regex expression");
+                            let regex_pattern =
+                                regress::Regex::with_flags(case["result_re"].as_str().as_ref(), "")
+                                    .expect("Should have a valid regex expression");
 
                             assert!(
-                                regex_pattern.is_match(&result.as_str()),
+                                regex_pattern.find(&result.as_str()).is_some(),
                                 "Value: {result:?}, did not match expected result_re",
                             );
                         } else {

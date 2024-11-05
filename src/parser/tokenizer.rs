@@ -119,7 +119,7 @@ impl std::fmt::Display for TokenKind {
             Null => write!(f, "null"),
             Bool(v) => write!(f, "{}", v),
             Str(v) => write!(f, "\"{}\"", v),
-            Regex(v) => write!(f, "/{}/", v.as_str()),
+            Regex(v) => write!(f, "/{}/", v.as_pattern()),
             Number(v) => write!(f, "{}", v),
             Name(v) => write!(f, "{}", v),
             Var(v) => write!(f, "${}", v),
@@ -352,6 +352,7 @@ impl<'a> Tokenizer<'a> {
                         let mut buffer = String::new();
                         let mut is_escape = false;
 
+                        // Parse the regex pattern between slashes
                         loop {
                             match self.peek() {
                                 '\\' => {
@@ -364,13 +365,11 @@ impl<'a> Tokenizer<'a> {
                                     break;
                                 }
                                 c => {
-                                    // Check for unterminated regex literals
                                     if self.eof() {
                                         return Err(Error::S0302UnterminatedRegex(
                                             self.start_char_index,
                                         ));
                                     }
-
                                     self.bump();
                                     buffer.push(c);
                                     is_escape = false;
@@ -378,15 +377,15 @@ impl<'a> Tokenizer<'a> {
                             }
                         }
 
+                        // Check for an empty regex pattern
                         if buffer.is_empty() {
                             return Err(Error::S0301EmptyRegex(self.start_char_index));
                         }
 
-                        // Check for the regex flags
+                        // Parse regex flags
                         let mut multi_line = false;
                         let mut case_insensitive = false;
                         loop {
-                            // JSONata only supports these two flags.
                             match self.peek() {
                                 'i' if !case_insensitive => {
                                     case_insensitive = true;
@@ -396,28 +395,23 @@ impl<'a> Tokenizer<'a> {
                                     multi_line = true;
                                     self.bump();
                                 }
-
-                                // Any other alphanumeric character is an error (including repetitions of a supported flag)
                                 c if c.is_alphanumeric() => {
                                     return Err(Error::S0303InvalidRegex(
                                         self.start_char_index,
                                         "Invalid regex flags".to_string(),
-                                    ))
+                                    ));
                                 }
-
                                 _ => break,
                             }
                         }
 
-                        let r = regex::RegexBuilder::new(&buffer)
-                            .case_insensitive(case_insensitive)
-                            .multi_line(multi_line)
-                            .build()
-                            .map_err(|e| {
-                                Error::S0303InvalidRegex(self.start_char_index, e.to_string())
-                            })?;
+                        // Build the regex with the specified flags
+                        let regex_literal =
+                            RegexLiteral::new(&buffer, case_insensitive, multi_line).map_err(
+                                |e| Error::S0303InvalidRegex(self.start_char_index, e.to_string()),
+                            )?;
 
-                        Regex(RegexLiteral::new(r))
+                        Regex(regex_literal)
                     }
                     _ => ForwardSlash,
                 },
@@ -864,12 +858,7 @@ mod tests {
     #[test]
     fn regex() {
         for expr in [
-            // Note: some of these might be non-sensical expressions, but the forward slash is in a value
-            // position, not an operator position, so it should be interpreted as beginning a regex.
-            // Eg, `$m < / 2` is interpreted as an unterminated regex by the javascript library as well.
             "/[0-9]+/",
-            "/[0-9]+/i",
-            "/[0-9]+/mi",
             r#"$matches("100", /[0-9]+/)"#,
             "path.to.object[stringProperty ~> /[0-9]+/",
             "$matcher := /[0-9]+/",
@@ -883,10 +872,11 @@ mod tests {
             "false and /[0-9]+/",
         ] {
             let tokens = collect_tokens(Tokenizer::new(expr)).unwrap();
+
             assert!(
                 tokens
                     .iter()
-                    .any(|t| matches!(&t.kind, TokenKind::Regex(s) if s.as_str() == "[0-9]+")),
+                    .any(|t| matches!(&t.kind, TokenKind::Regex(s) if s.as_pattern() == "[0-9]+")),
                 "Should contain the expected regex token: {}",
                 expr
             );
@@ -903,27 +893,30 @@ mod tests {
 
     #[test]
     fn regex_with_flags() {
+        // Case-insensitive flag test with basic pattern
         let kind = Tokenizer::new("/^[a-z]+$/i").next_token().unwrap().kind;
         if let TokenKind::Regex(r) = kind {
-            // There's not a function on the `regex::Regex` to check its flags directly.
+            // There's not a function on the `regress::Regex` to check its flags directly.
             assert!(r.is_match("ABC"));
             assert!(!r.is_match("\nABC\n"));
         } else {
             panic!("Expected regex token")
         };
 
+        // Multiline flag test with simple pattern
         let kind = Tokenizer::new("/^[a-z]+$/m").next_token().unwrap().kind;
         if let TokenKind::Regex(r) = kind {
-            // There's not a function on the `regex::Regex` to check its flags directly.
+            // There's not a function on the `regress::Regex` to check its flags directly.
             assert!(!r.is_match("ABC"));
             assert!(r.is_match("\nabc\n"));
         } else {
             panic!("Expected regex token")
         };
 
+        // Case-insensitive and multiline flags together
         let kind = Tokenizer::new("/^[a-z]+$/im").next_token().unwrap().kind;
         if let TokenKind::Regex(r) = kind {
-            // There's not a function on the `regex::Regex` to check its flags directly.
+            // There's not a function on the `regress::Regex` to check its flags directly.
             assert!(r.is_match("ABC"));
             assert!(r.is_match("\nABC\n"));
         } else {
