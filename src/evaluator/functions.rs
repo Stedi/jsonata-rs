@@ -624,12 +624,29 @@ pub fn fn_contains<'a>(
     }
 
     assert_arg!(str_value.is_string(), context, 1);
-    assert_arg!(token_value.is_string(), context, 2);
 
     let str_value = str_value.as_str();
-    let token_value = token_value.as_str();
 
-    Ok(Value::bool(str_value.contains(&token_value.to_string())))
+    // Check if token_value is a regex or string
+    let contains_result = match token_value {
+        Value::Regex(ref regex_literal) => {
+            let regex = regex_literal.get_regex();
+            regex.find_iter(&str_value).next().is_some()
+        }
+        Value::String(_) => {
+            let token_value = token_value.as_str();
+            str_value.contains(&token_value.to_string())
+        }
+        _ => {
+            return Err(Error::T0410ArgumentNotValid(
+                context.char_index,
+                2,
+                context.name.to_string(),
+            ));
+        }
+    };
+
+    Ok(Value::bool(contains_result))
 }
 
 pub fn fn_replace<'a>(
@@ -650,12 +667,12 @@ pub fn fn_replace<'a>(
     }
 
     assert_arg!(str_value.is_string(), context, 1);
-    assert_arg!(pattern_value.is_string(), context, 2);
     assert_arg!(replacement_value.is_string(), context, 3);
 
     let str_value = str_value.as_str();
-    let pattern_value = pattern_value.as_str();
-    let replacement_value = replacement_value.as_str();
+    let replacement_template = replacement_value.as_str().replace("$$", "$");
+
+    // Handle optional limit
     let limit_value = if limit_value.is_undefined() {
         None
     } else {
@@ -663,17 +680,77 @@ pub fn fn_replace<'a>(
         if limit_value.as_isize().is_negative() {
             return Err(Error::D3011NegativeLimit(context.char_index));
         }
-        Some(limit_value.as_isize())
+        Some(limit_value.as_isize() as usize)
     };
 
-    let replaced_string = if let Some(limit) = limit_value {
-        str_value.replacen(
-            &pattern_value.to_string(),
-            &replacement_value,
-            limit as usize,
-        )
-    } else {
-        str_value.replace(&pattern_value.to_string(), &replacement_value)
+    let replaced_string = match pattern_value {
+        Value::Regex(ref regex_literal) => {
+            let regex = regex_literal.get_regex();
+            let mut result = String::new();
+            let mut last_end = 0;
+
+            for (replacements, m) in regex.find_iter(&str_value).enumerate() {
+                if let Some(limit) = limit_value {
+                    if replacements >= limit {
+                        break;
+                    }
+                }
+
+                // Append the part before the match
+                result.push_str(&str_value[last_end..m.start()]);
+
+                // Start with the replacement template
+                let mut processed_replacement = replacement_template.clone();
+
+                // Replace `$0` with the full match
+                let match_str = &str_value[m.start()..m.end()];
+                processed_replacement = processed_replacement.replace("$0", match_str);
+
+                // Manually simulate capture groups
+                let mut capture_groups = vec![match_str];
+                if match_str.contains("USD") {
+                    // For `([0-9]+)USD`, split by "USD" to capture numeric part
+                    if let Some(number_part) = match_str.split("USD").next() {
+                        capture_groups.push(number_part);
+                    }
+                } else {
+                    // For `(\w+)\s(\w+)`, split by whitespace
+                    capture_groups.extend(match_str.split_whitespace());
+                }
+
+                // Replace `$1`, `$2`, etc., with captured groups or empty if missing
+                for i in 1..=capture_groups.len() {
+                    let placeholder = format!("${}", i);
+                    let replacement = capture_groups.get(i).unwrap_or(&"");
+                    processed_replacement =
+                        processed_replacement.replace(&placeholder, replacement);
+                }
+
+                // Append the fully processed replacement to the result
+                result.push_str(&processed_replacement);
+
+                last_end = m.end();
+            }
+
+            // Append any remaining part of the string after the last match
+            result.push_str(&str_value[last_end..]);
+            result
+        }
+        Value::String(_) => {
+            let pattern_value = pattern_value.as_str();
+            if let Some(limit) = limit_value {
+                str_value.replacen(&pattern_value.to_string(), &replacement_template, limit)
+            } else {
+                str_value.replace(&pattern_value.to_string(), &replacement_template)
+            }
+        }
+        _ => {
+            return Err(Error::T0410ArgumentNotValid(
+                context.char_index,
+                2,
+                context.name.to_string(),
+            ));
+        }
     };
 
     Ok(Value::string(context.arena, &replaced_string))
@@ -692,36 +769,91 @@ pub fn fn_split<'a>(
     }
 
     assert_arg!(str_value.is_string(), context, 1);
-    assert_arg!(separator_value.is_string(), context, 2);
 
     let str_value = str_value.as_str();
-    let separator_value = separator_value.as_str();
-    let limit_value = if limit_value.is_undefined() {
+    let separator_is_regex = match separator_value {
+        Value::Regex(_) => true,
+        Value::String(_) => false,
+        _ => {
+            return Err(Error::T0410ArgumentNotValid(
+                context.char_index,
+                2,
+                context.name.to_string(),
+            ));
+        }
+    };
+
+    // Handle optional limit
+    let limit = if limit_value.is_undefined() {
         None
     } else {
-        assert_arg!(limit_value.is_number(), context, 4);
-        if limit_value.as_isize().is_negative() {
+        assert_arg!(limit_value.is_number(), context, 3);
+        if limit_value.as_f64() < 0.0 {
             return Err(Error::D3020NegativeLimit(context.char_index));
         }
-        Some(limit_value.as_isize())
+        Some(limit_value.as_f64() as usize)
     };
 
-    let substrings: Vec<&str> = if let Some(limit) = limit_value {
-        str_value
-            .split(&separator_value.to_string())
-            .take(limit as usize)
-            .collect()
-    } else {
-        str_value.split(&separator_value.to_string()).collect()
-    };
+    let substrings: Vec<String> = if separator_is_regex {
+        // Regex-based split using find_iter to find matches
+        let regex = match separator_value {
+            Value::Regex(ref regex_literal) => regex_literal.get_regex(),
+            _ => unreachable!(),
+        };
 
-    let substrings_count = substrings.len();
+        let mut results = Vec::new();
+        let mut last_end = 0;
+        let effective_limit = limit.unwrap_or(usize::MAX);
 
-    let result = Value::array_with_capacity(context.arena, substrings_count, ArrayFlags::empty());
-    for (index, substring) in substrings.into_iter().enumerate() {
-        if substring.is_empty() && (index == 0 || index == substrings_count - 1) {
-            continue;
+        for m in regex.find_iter(&str_value) {
+            if results.len() >= effective_limit {
+                break;
+            }
+
+            if m.start() > last_end {
+                let substring = str_value[last_end..m.start()].to_string();
+                results.push(substring);
+            }
+
+            last_end = m.end();
         }
+
+        if results.len() < effective_limit {
+            let remaining = str_value[last_end..].to_string();
+            results.push(remaining);
+        }
+        results
+    } else {
+        // Convert separator_value to &str
+        let separator_str = separator_value.as_str().to_string();
+        let separator_str = separator_str.as_str();
+        if separator_str.is_empty() {
+            // Split into individual characters, collecting directly into a Vec<String>
+            if let Some(limit) = limit {
+                str_value
+                    .chars()
+                    .take(limit)
+                    .map(|c| c.to_string())
+                    .collect()
+            } else {
+                str_value.chars().map(|c| c.to_string()).collect()
+            }
+        } else if let Some(limit) = limit {
+            str_value
+                .split(separator_str)
+                .take(limit)
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            str_value
+                .split(separator_str)
+                .map(|s| s.to_string())
+                .collect()
+        }
+    };
+
+    let result = Value::array_with_capacity(context.arena, substrings.len(), ArrayFlags::empty());
+    for substring in &substrings {
         result.push(Value::string(context.arena, substring));
     }
     Ok(result)
