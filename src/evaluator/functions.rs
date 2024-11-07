@@ -672,13 +672,11 @@ pub fn fn_replace<'a>(
     let str_value = str_value.as_str();
     let mut replacement_template = replacement_value.as_str();
 
-    // Temporarily replace `$$` with a unique placeholder
     let dollar_placeholder = "__DOLLAR_PLACEHOLDER__";
     replacement_template = replacement_template
         .replace("$$", dollar_placeholder)
         .into();
 
-    // Handle optional limit
     let limit_value = if limit_value.is_undefined() {
         None
     } else {
@@ -702,21 +700,16 @@ pub fn fn_replace<'a>(
                     }
                 }
 
-                // Append the part before the match
                 result.push_str(&str_value[last_end..m.start()]);
 
-                // Clone the replacement template for each match
                 let mut processed_replacement = replacement_template.clone();
 
-                // Replace `$0` with the full match
                 let match_str = &str_value[m.start()..m.end()];
                 processed_replacement = processed_replacement.replace("$0", match_str).into();
 
-                // Capture groups
                 let capture_groups = get_capture_groups(match_str);
 
-                // Replace `$1`, `$2`, etc., with captured groups or empty if missing
-                for i in 1..=10 {
+                for i in 1..=100 {
                     let placeholder = format!("${}", i);
                     let replacement = capture_groups.get(i - 1).unwrap_or(&"");
                     processed_replacement = processed_replacement
@@ -724,18 +717,15 @@ pub fn fn_replace<'a>(
                         .into();
                 }
 
-                // Restore any remaining dollar placeholders as literal `$`
                 processed_replacement = processed_replacement
                     .replace(dollar_placeholder, "$")
                     .into();
 
-                // Append the fully processed replacement to the result
                 result.push_str(&processed_replacement);
 
                 last_end = m.end();
             }
 
-            // Append any remaining part of the string after the last match
             result.push_str(&str_value[last_end..]);
             result
         }
