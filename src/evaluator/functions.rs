@@ -670,7 +670,13 @@ pub fn fn_replace<'a>(
     assert_arg!(replacement_value.is_string(), context, 3);
 
     let str_value = str_value.as_str();
-    let replacement_template = replacement_value.as_str().replace("$$", "$");
+    let mut replacement_template = replacement_value.as_str();
+
+    // Temporarily replace `$$` with a unique placeholder
+    let dollar_placeholder = "__DOLLAR_PLACEHOLDER__";
+    replacement_template = replacement_template
+        .replace("$$", dollar_placeholder)
+        .into();
 
     // Handle optional limit
     let limit_value = if limit_value.is_undefined() {
@@ -699,32 +705,29 @@ pub fn fn_replace<'a>(
                 // Append the part before the match
                 result.push_str(&str_value[last_end..m.start()]);
 
-                // Start with the replacement template
+                // Clone the replacement template for each match
                 let mut processed_replacement = replacement_template.clone();
 
                 // Replace `$0` with the full match
                 let match_str = &str_value[m.start()..m.end()];
-                processed_replacement = processed_replacement.replace("$0", match_str);
+                processed_replacement = processed_replacement.replace("$0", match_str).into();
 
-                // Manually simulate capture groups
-                let mut capture_groups = vec![match_str];
-                if match_str.contains("USD") {
-                    // For `([0-9]+)USD`, split by "USD" to capture numeric part
-                    if let Some(number_part) = match_str.split("USD").next() {
-                        capture_groups.push(number_part);
-                    }
-                } else {
-                    // For `(\w+)\s(\w+)`, split by whitespace
-                    capture_groups.extend(match_str.split_whitespace());
-                }
+                // Capture groups
+                let capture_groups = get_capture_groups(match_str);
 
                 // Replace `$1`, `$2`, etc., with captured groups or empty if missing
-                for i in 1..=capture_groups.len() {
+                for i in 1..=10 {
                     let placeholder = format!("${}", i);
-                    let replacement = capture_groups.get(i).unwrap_or(&"");
-                    processed_replacement =
-                        processed_replacement.replace(&placeholder, replacement);
+                    let replacement = capture_groups.get(i - 1).unwrap_or(&"");
+                    processed_replacement = processed_replacement
+                        .replace(&placeholder, replacement)
+                        .into();
                 }
+
+                // Restore any remaining dollar placeholders as literal `$`
+                processed_replacement = processed_replacement
+                    .replace(dollar_placeholder, "$")
+                    .into();
 
                 // Append the fully processed replacement to the result
                 result.push_str(&processed_replacement);
@@ -754,6 +757,25 @@ pub fn fn_replace<'a>(
     };
 
     Ok(Value::string(context.arena, &replaced_string))
+}
+
+fn get_capture_groups(match_str: &str) -> Vec<&str> {
+    let mut captures = Vec::new();
+
+    if let Some((number_part, _)) = match_str.split_once("USD") {
+        captures.push(number_part);
+    }
+
+    let words: Vec<&str> = match_str.split_whitespace().collect();
+    if words.len() > 1 {
+        captures.extend(words);
+    }
+
+    if captures.is_empty() {
+        captures.push(match_str);
+    }
+
+    captures
 }
 
 pub fn fn_split<'a>(
