@@ -2,6 +2,7 @@ use base64::Engine;
 use chrono::{TimeZone, Utc};
 use hashbrown::{DefaultHashBuilder, HashMap};
 use rand::Rng;
+use regress::Regex;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -667,16 +668,8 @@ pub fn fn_replace<'a>(
     }
 
     assert_arg!(str_value.is_string(), context, 1);
-    assert_arg!(replacement_value.is_string(), context, 3);
 
     let str_value = str_value.as_str();
-    let mut replacement_template = replacement_value.as_str();
-
-    let dollar_placeholder = "__DOLLAR_PLACEHOLDER__";
-    replacement_template = replacement_template
-        .replace("$$", dollar_placeholder)
-        .into();
-
     let limit_value = if limit_value.is_undefined() {
         None
     } else {
@@ -687,55 +680,13 @@ pub fn fn_replace<'a>(
         Some(limit_value.as_isize() as usize)
     };
 
-    let replaced_string = match pattern_value {
-        Value::Regex(ref regex_literal) => {
-            let regex = regex_literal.get_regex();
-            let mut result = String::new();
-            let mut last_end = 0;
-
-            for (replacements, m) in regex.find_iter(&str_value).enumerate() {
-                if let Some(limit) = limit_value {
-                    if replacements >= limit {
-                        break;
-                    }
-                }
-
-                result.push_str(&str_value[last_end..m.start()]);
-
-                let mut processed_replacement = replacement_template.clone();
-
-                let match_str = &str_value[m.start()..m.end()];
-                processed_replacement = processed_replacement.replace("$0", match_str).into();
-
-                let capture_groups = get_capture_groups(match_str);
-
-                for i in 1..=100 {
-                    let placeholder = format!("${}", i);
-                    let replacement = capture_groups.get(i - 1).unwrap_or(&"");
-                    processed_replacement = processed_replacement
-                        .replace(&placeholder, replacement)
-                        .into();
-                }
-
-                processed_replacement = processed_replacement
-                    .replace(dollar_placeholder, "$")
-                    .into();
-
-                result.push_str(&processed_replacement);
-
-                last_end = m.end();
-            }
-
-            result.push_str(&str_value[last_end..]);
-            result
-        }
-        Value::String(_) => {
-            let pattern_value = pattern_value.as_str();
-            if let Some(limit) = limit_value {
-                str_value.replacen(&pattern_value.to_string(), &replacement_template, limit)
-            } else {
-                str_value.replace(&pattern_value.to_string(), &replacement_template)
-            }
+    // Check if pattern_value is a Regex or String and handle appropriately
+    let regex = match pattern_value {
+        Value::Regex(ref regex_literal) => regex_literal.get_regex(),
+        Value::String(ref pattern_str) => {
+            &Regex::new(&escape_string_for_regex(pattern_str.as_str())).map_err(|_| {
+                Error::T0410ArgumentNotValid(context.char_index, 2, context.name.to_string())
+            })?
         }
         _ => {
             return Err(Error::T0410ArgumentNotValid(
@@ -746,7 +697,66 @@ pub fn fn_replace<'a>(
         }
     };
 
-    Ok(Value::string(context.arena, &replaced_string))
+    let mut result = String::new();
+    let mut last_end = 0;
+
+    for (replacements, m) in regex.find_iter(&str_value).enumerate() {
+        if let Some(limit) = limit_value {
+            if replacements >= limit {
+                break;
+            }
+        }
+
+        result.push_str(&str_value[last_end..m.start()]);
+
+        let match_str = &str_value[m.start()..m.end()];
+
+        // Process replacement based on the replacement_value type
+        let replacement_text = match replacement_value {
+            Value::NativeFn { func, .. } => {
+                let func_result =
+                    func(context.clone(), &[Value::string(context.arena, match_str)])?;
+                if let Value::String(ref s) = func_result {
+                    s.as_str().to_string()
+                } else {
+                    "".to_string()
+                }
+            }
+            Value::Lambda { .. } => {
+                let func_result = context.evaluate_function(
+                    replacement_value,
+                    &[Value::string(context.arena, match_str)],
+                )?;
+                if let Value::String(ref s) = func_result {
+                    s.as_str().to_string()
+                } else {
+                    "".to_string()
+                }
+            }
+            _ => {
+                let mut replacement_template = replacement_value
+                    .as_str()
+                    .replace("$$", "__DOLLAR_PLACEHOLDER__");
+                replacement_template = replacement_template.replace("$0", match_str);
+
+                let capture_groups = get_capture_groups(match_str);
+                for i in 1..=100 {
+                    let placeholder = format!("${}", i);
+                    let replacement = capture_groups.get(i - 1).unwrap_or(&"");
+                    replacement_template = replacement_template.replace(&placeholder, replacement);
+                }
+
+                replacement_template.replace("__DOLLAR_PLACEHOLDER__", "$")
+            }
+        };
+
+        result.push_str(&replacement_text);
+        last_end = m.end();
+    }
+
+    result.push_str(&str_value[last_end..]);
+
+    Ok(Value::string(context.arena, &result))
 }
 
 fn get_capture_groups(match_str: &str) -> Vec<&str> {
@@ -766,6 +776,22 @@ fn get_capture_groups(match_str: &str) -> Vec<&str> {
     }
 
     captures
+}
+
+fn escape_string_for_regex(pattern: &str) -> String {
+    let special_chars = [
+        '\\', '.', '+', '*', '?', '^', '$', '(', ')', '[', ']', '{', '}', '|',
+    ];
+    let mut escaped = String::with_capacity(pattern.len());
+
+    for ch in pattern.chars() {
+        if special_chars.contains(&ch) {
+            escaped.push('\\');
+        }
+        escaped.push(ch);
+    }
+
+    escaped
 }
 
 pub fn fn_split<'a>(
