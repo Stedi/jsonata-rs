@@ -1,8 +1,7 @@
 name: Release
 
 permissions:
-  pull-requests: write
-  contents: write
+  contents: read
 
 on:
   push:
@@ -12,6 +11,8 @@ on:
 jobs:
   # Release unpublished packages.
   release-plz-release:
+    permissions:
+      contents: write
     name: Release-plz release
     runs-on: ubuntu-latest
     steps:
@@ -40,6 +41,9 @@ jobs:
 
   # Create a PR with the new versions and changelog, preparing the next release.
   release-plz-pr:
+    permissions:
+      contents: write
+      pull-requests: write
     name: Release-plz PR
     runs-on: ubuntu-latest
     concurrency:
