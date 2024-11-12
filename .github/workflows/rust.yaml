@@ -17,17 +17,20 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: dtolnay/rust-toolchain@1482605bfc5719782e1267fd0c0cc350fe7646b8 # stable
+        with:
+          toolchain: stable
       - run: cargo test --all-features -- --nocapture
 
   test_wasm:
     name: Test WebAssembly (WASI)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: dtolnay/rust-toolchain@1482605bfc5719782e1267fd0c0cc350fe7646b8 # stable
         with:
+          toolchain: stable
           target: wasm32-wasi
       - uses: taiki-e/install-action@9c04113bd63f9659d7a53908386758275ab35630
         with:
@@ -42,9 +45,10 @@ jobs:
     name: Format/Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: dtolnay/rust-toolchain@1482605bfc5719782e1267fd0c0cc350fe7646b8 # stable
         with:
+          toolchain: stable
           components: rustfmt, clippy
       - name: Cargo fmt
         run: cargo fmt --all --check
