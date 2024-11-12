@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.3.0](https://github.com/Stedi/jsonata-rs/compare/v0.2.0...v0.3.0) - 2024-11-12
+
+### Added
+
+- Handle regex pattern for Value type ([#118](https://github.com/Stedi/jsonata-rs/pull/118))
+
+### Other
+
+- add permissions definitions at workflow and jobs level ([#129](https://github.com/Stedi/jsonata-rs/pull/129))
+- Revert "chore: exempt CHANGELOG from codeowners ([#121](https://github.com/Stedi/jsonata-rs/pull/121))" ([#124](https://github.com/Stedi/jsonata-rs/pull/124))
+- Update scorecard.yml ([#123](https://github.com/Stedi/jsonata-rs/pull/123))
+- run tests within merge queue ([#122](https://github.com/Stedi/jsonata-rs/pull/122))
+- exempt CHANGELOG from codeowners ([#121](https://github.com/Stedi/jsonata-rs/pull/121))
+- *(deps)* update github actions upgrade ([#119](https://github.com/Stedi/jsonata-rs/pull/119))
+
 ## [0.2.0](https://github.com/Stedi/jsonata-rs/compare/v0.1.10...v0.2.0) - 2024-11-01
 
 ### Added
