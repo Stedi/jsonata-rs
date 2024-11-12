@@ -7,6 +7,10 @@ on:
     paths:
       - "renovate.json"
 
+permissions:
+  security-events: read
+  contents: read
+
 jobs:
   validate-renovate:
     runs-on: ubuntu-latest

@@ -5,31 +5,32 @@ name: OSV-Scanner
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   merge_group:
-    branches: [ "main" ]
+    branches: ["main"]
   schedule:
     # Scan once a week
-    - cron: '36 22 * * 2'
+    - cron: "36 22 * * 2"
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 permissions:
-  security-events: write
   contents: read
 
 jobs:
   scan-scheduled:
+    permissions:
+      contents: read
     if: ${{ github.event_name == 'push' || github.event_name == 'schedule' }}
     uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@19ec1116569a47416e11a45848722b1af31a857b" # v1.9.0
     with:
-      # -r:  
+      # -r:
       # Recursively scan subdirectories
-      # 
-      # --call-analysis=all 
-      # Check if the vulnerable code is actually being executed by your project. 
+      #
+      # --call-analysis=all
+      # Check if the vulnerable code is actually being executed by your project.
       # If the code is not being executed, these vulnerabilities will be marked as unexecuted.
-      # 
+      #
       # --skip-git
       # Only look at the current code. Do not spend time looking through all commits
       scan-args: |-
@@ -38,16 +39,18 @@ jobs:
         --skip-git
         ./
   scan-pr:
+    permissions:
+      contents: read
     if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
     uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@19ec1116569a47416e11a45848722b1af31a857b" # v1.9.0
     with:
-      # -r:  
+      # -r:
       # Recursively scan subdirectories
-      # 
-      # --call-analysis=all 
-      # Check if the vulnerable code is actually being executed by your project. 
+      #
+      # --call-analysis=all
+      # Check if the vulnerable code is actually being executed by your project.
       # If the code is not being executed, these vulnerabilities will be marked as unexecuted.
-      # 
+      #
       # --skip-git
       # Only look at the current code. Do not spend time looking through all commits
       scan-args: |-
@@ -55,4 +58,3 @@ jobs:
         --call-analysis=all
         --skip-git
         ./
-
