@@ -24,7 +24,7 @@ jobs:
           node-version: 18
 
       - name: Install Renovate
-        run: npm install -g renovate@39.9.3
+        run: npm install -g renovate
 
       - name: Validate repo Renovate config
         run: renovate-config-validator
