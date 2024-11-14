@@ -33,6 +33,7 @@ pub enum Error {
     // Runtime errors
     D1001NumberOfOutRange(f64),
     D1002NegatingNonNumeric(usize, String),
+    D1004ZeroLengthMatch(usize),
     D1009MultipleKeys(usize, String),
     D2014RangeOutOfBounds(usize, isize),
     D3001StringNotFinite(usize),
@@ -122,6 +123,7 @@ impl Error {
             // Runtime errors
             Error::D1001NumberOfOutRange(..) => "D1001",
             Error::D1002NegatingNonNumeric(..) => "D1002",
+            Error::D1004ZeroLengthMatch(..) => "D1004",
             Error::D1009MultipleKeys(..) => "D1009",
             Error::D2014RangeOutOfBounds(..) => "D2014",
             Error::D3001StringNotFinite(..) => "D3001",
@@ -228,6 +230,8 @@ impl fmt::Display for Error {
             D1001NumberOfOutRange(ref n) => write!(f, "Number out of range: {}", n),
             D1002NegatingNonNumeric(ref p, ref v) =>
                 write!(f, "{}: Cannot negate a non-numeric value `{}`", p, v),
+            D1004ZeroLengthMatch(ref p) =>
+                write!(f, "{}: Regular expression matches zero length string", p),
             D1009MultipleKeys(ref p, ref k) =>
                 write!(f, "{}: Multiple key definitions evaluate to same key: {}", p, k),
             D2014RangeOutOfBounds(ref p, ref s) =>

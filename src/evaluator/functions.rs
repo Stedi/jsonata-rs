@@ -2,7 +2,6 @@ use base64::Engine;
 use chrono::{TimeZone, Utc};
 use hashbrown::{DefaultHashBuilder, HashMap};
 use rand::Rng;
-use regress::Regex;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -684,9 +683,16 @@ pub fn fn_replace<'a>(
     let regex = match pattern_value {
         Value::Regex(ref regex_literal) => regex_literal.get_regex(),
         Value::String(ref pattern_str) => {
-            &Regex::new(&escape_string_for_regex(pattern_str.as_str())).map_err(|_| {
-                Error::T0410ArgumentNotValid(context.char_index, 2, context.name.to_string())
-            })?
+            assert_arg!(replacement_value.is_string(), context, 3);
+            let replacement_str = replacement_value.as_str();
+
+            let replaced_string = if let Some(limit) = limit_value {
+                str_value.replacen(&pattern_str.to_string(), &replacement_str, limit)
+            } else {
+                str_value.replace(&pattern_str.to_string(), &replacement_str)
+            };
+
+            return Ok(Value::string(context.arena, &replaced_string));
         }
         _ => {
             return Err(Error::T0410ArgumentNotValid(
@@ -701,6 +707,10 @@ pub fn fn_replace<'a>(
     let mut last_end = 0;
 
     for (replacements, m) in regex.find_iter(&str_value).enumerate() {
+        if m.range().is_empty() {
+            return Err(Error::D1004ZeroLengthMatch(context.char_index));
+        }
+        dbg!(&m);
         if let Some(limit) = limit_value {
             if replacements >= limit {
                 break;
@@ -776,22 +786,6 @@ fn get_capture_groups(match_str: &str) -> Vec<&str> {
     }
 
     captures
-}
-
-fn escape_string_for_regex(pattern: &str) -> String {
-    let special_chars = [
-        '\\', '.', '+', '*', '?', '^', '$', '(', ')', '[', ']', '{', '}', '|',
-    ];
-    let mut escaped = String::with_capacity(pattern.len());
-
-    for ch in pattern.chars() {
-        if special_chars.contains(&ch) {
-            escaped.push('\\');
-        }
-        escaped.push(ch);
-    }
-
-    escaped
 }
 
 pub fn fn_split<'a>(
