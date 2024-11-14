@@ -1104,6 +1104,7 @@ pub fn to_millis<'a>(
     }
 
     max_args!(context, args, 2);
+    assert_arg!(args[0].is_string(), context, 1);
 
     // Extract the timestamp string
     let timestamp_str = args[0].as_str();
@@ -1113,7 +1114,11 @@ pub fn to_millis<'a>(
 
     // Extract the optional picture string
     let picture = match args {
-        [_, picture] => picture.as_str(),
+        [_, picture] if picture.is_undefined() => Cow::Borrowed(""),
+        [_, picture] => {
+            assert_arg!(picture.is_string(), context, 2);
+            picture.as_str()
+        }
         _ => Cow::Borrowed(""),
     };
 
