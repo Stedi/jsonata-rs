@@ -1,8 +1,7 @@
 name: Release
 
 permissions:
-  pull-requests: write
-  contents: write
+  contents: read
 
 on:
   push:
@@ -12,11 +11,13 @@ on:
 jobs:
   # Release unpublished packages.
   release-plz-release:
+    permissions:
+      contents: write
     name: Release-plz release
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@5d869da34e18e7287c1daad50e0b8ea0f506ce69 # v1
         id: generate-token
         with:
           # GitHub App ID secret name
@@ -24,14 +25,16 @@ jobs:
           # GitHub App private key secret name
           private-key: ${{ secrets.RELEASE_PLZ_PRIVATE_KEY }}
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1482605bfc5719782e1267fd0c0cc350fe7646b8 # stable
+        with:
+          toolchain: stable
       - name: Run release-plz release
-        uses: MarcoIeni/release-plz-action@v0.5
+        uses: MarcoIeni/release-plz-action@301fd6d8c641b97f25b5ade37651a478a5faa7da # v0.5
         with:
           command: release
         env:
@@ -40,6 +43,9 @@ jobs:
 
   # Create a PR with the new versions and changelog, preparing the next release.
   release-plz-pr:
+    permissions:
+      contents: write
+      pull-requests: write
     name: Release-plz PR
     runs-on: ubuntu-latest
     concurrency:
@@ -47,7 +53,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Generate GitHub token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@5d869da34e18e7287c1daad50e0b8ea0f506ce69 # v1
         id: generate-token
         with:
           # GitHub App ID secret name
@@ -55,14 +61,16 @@ jobs:
           # GitHub App private key secret name
           private-key: ${{ secrets.RELEASE_PLZ_PRIVATE_KEY }}
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1482605bfc5719782e1267fd0c0cc350fe7646b8 # stable
+        with:
+          toolchain: stable
       - name: Run release-plz PR task
-        uses: MarcoIeni/release-plz-action@v0.5
+        uses: MarcoIeni/release-plz-action@301fd6d8c641b97f25b5ade37651a478a5faa7da # v0.5
         with:
           command: release-pr
         env:

@@ -7,6 +7,10 @@ on:
     paths:
       - "renovate.json"
 
+permissions:
+  security-events: read
+  contents: read
+
 jobs:
   validate-renovate:
     runs-on: ubuntu-latest
@@ -20,7 +24,7 @@ jobs:
           node-version: 18
 
       - name: Install Renovate
-        run: npm install -g renovate
+        run: npm install -g renovate@39.9.3
 
       - name: Validate repo Renovate config
         run: renovate-config-validator
