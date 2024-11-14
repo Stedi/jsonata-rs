@@ -1002,12 +1002,13 @@ pub fn from_millis<'a>(
     }
 
     max_args!(context, args, 3);
+    assert_arg!(args[0].is_number(), context, 1);
+
     let millis = args[0].as_f64() as i64;
 
-    let timestamp = Utc
-        .timestamp_millis_opt(millis)
-        .single()
-        .ok_or_else(|| Error::T0410ArgumentNotValid(0, 1, context.name.to_string()))?;
+    let Some(timestamp) = Utc.timestamp_millis_opt(millis).single() else {
+        bad_arg!(context, 1);
+    };
 
     let (picture, timezone) = match args {
         [_, picture, timezone] => (
