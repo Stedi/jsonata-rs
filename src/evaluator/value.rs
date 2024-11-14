@@ -96,6 +96,15 @@ impl<'a> Value<'a> {
         arena.alloc(Value::Number(value.into()))
     }
 
+    pub fn number_from_u128(arena: &Bump, value: u128) -> Result<&mut Value> {
+        let value_f64 = value as f64;
+        if value_f64 as u128 != value {
+            // number is too large to retain precision
+            return Err(Error::D1001NumberOfOutRange(value_f64));
+        };
+        Ok(arena.alloc(Value::Number(value_f64)))
+    }
+
     pub fn string(arena: &'a Bump, value: &str) -> &'a mut Value<'a> {
         arena.alloc(Value::String(BumpString::from_str_in(value, arena)))
     }
