@@ -696,11 +696,7 @@ pub fn fn_replace<'a>(
             return Ok(Value::string(context.arena, &replaced_string));
         }
         _ => {
-            return Err(Error::T0410ArgumentNotValid(
-                context.char_index,
-                2,
-                context.name.to_string(),
-            ));
+            bad_arg!(context, 2);
         }
     };
 
