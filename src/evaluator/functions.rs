@@ -1002,30 +1002,28 @@ pub fn from_millis<'a>(
     }
 
     max_args!(context, args, 3);
+    assert_arg!(args[0].is_number(), context, 1);
+
     let millis = args[0].as_f64() as i64;
 
-    let timestamp = Utc
-        .timestamp_millis_opt(millis)
-        .single()
-        .ok_or_else(|| Error::T0410ArgumentNotValid(0, 1, context.name.to_string()))?;
+    let Some(timestamp) = Utc.timestamp_millis_opt(millis).single() else {
+        bad_arg!(context, 1);
+    };
 
     let (picture, timezone) = match args {
-        [_, picture, timezone] => (
-            if picture.is_string() {
-                picture.as_str()
-            } else {
-                Cow::Borrowed("") // Treat non-strings (like ()) as empty strings
-            },
-            timezone.as_str(),
-        ),
-        [_, picture] => (
-            if picture.is_string() {
-                picture.as_str()
-            } else {
-                Cow::Borrowed("")
-            },
-            Cow::Borrowed(""),
-        ),
+        [_, picture, timezone] if picture.is_undefined() => {
+            assert_arg!(timezone.is_string(), context, 3);
+            (Cow::Borrowed(""), timezone.as_str())
+        }
+        [_, picture, timezone] => {
+            assert_arg!(picture.is_string(), context, 2);
+            assert_arg!(timezone.is_string(), context, 3);
+            (picture.as_str(), timezone.as_str())
+        }
+        [_, picture] => {
+            assert_arg!(picture.is_string(), context, 2);
+            (picture.as_str(), Cow::Borrowed(""))
+        }
         _ => (Cow::Borrowed(""), Cow::Borrowed("")),
     };
 
@@ -1106,6 +1104,7 @@ pub fn to_millis<'a>(
     }
 
     max_args!(context, args, 2);
+    assert_arg!(args[0].is_string(), context, 1);
 
     // Extract the timestamp string
     let timestamp_str = args[0].as_str();
@@ -1115,7 +1114,11 @@ pub fn to_millis<'a>(
 
     // Extract the optional picture string
     let picture = match args {
-        [_, picture] => picture.as_str(),
+        [_, picture] if picture.is_undefined() => Cow::Borrowed(""),
+        [_, picture] => {
+            assert_arg!(picture.is_string(), context, 2);
+            picture.as_str()
+        }
         _ => Cow::Borrowed(""),
     };
 
