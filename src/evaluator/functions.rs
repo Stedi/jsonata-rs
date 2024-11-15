@@ -792,6 +792,7 @@ pub fn fn_replace<'a>(
 
                         // Still parsing a group number
                         (S::Group(so_far), Some(c)) if c.is_numeric() => {
+                            // FIXME: bug, the jsonata reference behavior for $N is to match any valid prefix with a group number
                             let digit = c
                                 .to_digit(10)
                                 .expect("numeric char failed to parse as digit");
