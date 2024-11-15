@@ -2,6 +2,7 @@ use base64::Engine;
 use chrono::{TimeZone, Utc};
 use hashbrown::{DefaultHashBuilder, HashMap};
 use rand::Rng;
+use regress::Range;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -710,7 +711,7 @@ pub fn fn_replace<'a>(
         if m.range().is_empty() {
             return Err(Error::D1004ZeroLengthMatch(context.char_index));
         }
-        dbg!(&m);
+
         if let Some(limit) = limit_value {
             if replacements >= limit {
                 break;
@@ -744,19 +745,93 @@ pub fn fn_replace<'a>(
                 }
             }
             _ => {
-                let mut replacement_template = replacement_value
-                    .as_str()
-                    .replace("$$", "__DOLLAR_PLACEHOLDER__");
-                replacement_template = replacement_template.replace("$0", match_str);
-
-                let capture_groups = get_capture_groups(match_str);
-                for i in 1..=100 {
-                    let placeholder = format!("${}", i);
-                    let replacement = capture_groups.get(i - 1).unwrap_or(&"");
-                    replacement_template = replacement_template.replace(&placeholder, replacement);
+                #[derive(Debug)]
+                enum S {
+                    Literal,
+                    Dollar,
+                    Group(u32),
+                    End,
                 }
 
-                replacement_template.replace("__DOLLAR_PLACEHOLDER__", "$")
+                let mut state = S::Literal;
+                let mut acc = String::new();
+                let groups: Vec<Option<Range>> = m.groups().collect();
+
+                let replacement_str = replacement_value.as_str();
+                let mut chars = replacement_str.chars();
+
+                loop {
+                    let c = chars.next();
+                    match (&state, c) {
+                        (S::Literal, Some('$')) => {
+                            state = S::Dollar;
+                        }
+                        (S::Literal, Some(c)) => {
+                            acc.push(c);
+                        }
+                        (S::Dollar, Some('$')) => {
+                            acc.push('$');
+                            state = S::Literal;
+                        }
+
+                        // Start parsing a group number
+                        (S::Dollar, Some(c)) if c.is_numeric() => {
+                            let digit = c
+                                .to_digit(10)
+                                .expect("numeric char failed to parse as digit");
+                            state = S::Group(digit);
+                        }
+
+                        // `$` followed by something other than a group number
+                        // (including end of string) is treated as a literal `$`
+                        (S::Dollar, c) => {
+                            acc.push('$');
+                            c.inspect(|c| acc.push(*c));
+                            state = S::Literal;
+                        }
+
+                        // Still parsing a group number
+                        (S::Group(so_far), Some(c)) if c.is_numeric() => {
+                            let digit = c
+                                .to_digit(10)
+                                .expect("numeric char failed to parse as digit");
+                            state = S::Group(so_far * 10 + digit);
+                        }
+
+                        // The group number is complete, so we can now process it
+                        (S::Group(index), c) => {
+                            if let Some(match_range) =
+                                groups.get(*index as usize).and_then(|x| x.as_ref())
+                            {
+                                str_value
+                                    .get(match_range.start..match_range.end)
+                                    .inspect(|s| acc.push_str(s));
+                            } else {
+                                // The capture group did not match.
+                            }
+
+                            if let Some(c) = c {
+                                if c == '$' {
+                                    state = S::Dollar;
+                                } else {
+                                    acc.push(c);
+                                    state = S::Literal;
+                                }
+                            } else {
+                                state = S::End;
+                            }
+                        }
+                        (S::Literal, None) => {
+                            state = S::End;
+                        }
+
+                        (S::End, _) => {
+                            break;
+                        }
+                    }
+                }
+
+                acc
             }
         };
 
@@ -767,25 +842,6 @@ pub fn fn_replace<'a>(
     result.push_str(&str_value[last_end..]);
 
     Ok(Value::string(context.arena, &result))
-}
-
-fn get_capture_groups(match_str: &str) -> Vec<&str> {
-    let mut captures = Vec::new();
-
-    if let Some((number_part, _)) = match_str.split_once("USD") {
-        captures.push(number_part);
-    }
-
-    let words: Vec<&str> = match_str.split_whitespace().collect();
-    if words.len() > 1 {
-        captures.extend(words);
-    }
-
-    if captures.is_empty() {
-        captures.push(match_str);
-    }
-
-    captures
 }
 
 pub fn fn_split<'a>(
