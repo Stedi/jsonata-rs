@@ -796,7 +796,29 @@ pub fn fn_replace<'a>(
                             let digit = c
                                 .to_digit(10)
                                 .expect("numeric char failed to parse as digit");
-                            state = S::Group(so_far * 10 + digit);
+
+                            let next = so_far * 10 + digit;
+                            let groups_len = groups.len() as u32;
+                            // A bizarre behavior of the jsonata reference implementation is that in $NM if NM is not a
+                            // valid group number, it will use $N and treat M as a literal. This is not documented behavior and
+                            // feels like a bug, but our test cases cover it in several ways.
+                            if next >= groups_len {
+                                if let Some(match_range) =
+                                    groups.get(*so_far as usize).and_then(|x| x.as_ref())
+                                {
+                                    str_value
+                                        .get(match_range.start..match_range.end)
+                                        .inspect(|s| acc.push_str(s));
+                                } else {
+                                    // The capture group did not match.
+                                }
+
+                                acc.push(c);
+
+                                state = S::Literal
+                            } else {
+                                state = S::Group(next);
+                            }
                         }
 
                         // The group number is complete, so we can now process it
