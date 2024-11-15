@@ -718,9 +718,22 @@ pub fn fn_replace<'a>(
 
         let match_str = &str_value[m.start()..m.end()];
 
+        // Extract capture groups as values
+        let capture_groups: Vec<&str> = m
+            .groups()
+            .filter_map(|group| group.map(|range| &str_value[range.start..range.end]))
+            .collect();
+
         // Process replacement based on the replacement_value type
         let replacement_text = match replacement_value {
             Value::NativeFn { func, .. } => {
+                print!("NativeFn");
+                let mut func_args = vec![Value::string(context.arena, match_str)];
+                func_args.extend(
+                    capture_groups
+                        .iter()
+                        .map(|&s| Value::string(context.arena, s)),
+                );
                 let func_result =
                     func(context.clone(), &[Value::string(context.arena, match_str)])?;
                 if let Value::String(ref s) = func_result {
@@ -730,6 +743,14 @@ pub fn fn_replace<'a>(
                 }
             }
             Value::Lambda { .. } => {
+                println!("Lambda");
+                let mut func_args = vec![Value::string(context.arena, match_str)];
+                func_args.extend(
+                    capture_groups
+                        .iter()
+                        .map(|&s| Value::string(context.arena, s)),
+                );
+
                 let func_result = context.evaluate_function(
                     replacement_value,
                     &[Value::string(context.arena, match_str)],
@@ -737,10 +758,11 @@ pub fn fn_replace<'a>(
                 if let Value::String(ref s) = func_result {
                     s.as_str().to_string()
                 } else {
-                    "".to_string()
+                    return Err(Error::D3012InvalidReplacementType(context.char_index));
                 }
             }
             _ => {
+                println!("Else");
                 #[derive(Debug)]
                 enum S {
                     Literal,

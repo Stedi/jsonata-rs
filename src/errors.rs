@@ -39,6 +39,7 @@ pub enum Error {
     D3001StringNotFinite(usize),
     D3010EmptyPattern(usize),
     D3011NegativeLimit(usize),
+    D3012InvalidReplacementType(usize),
     D3020NegativeLimit(usize),
     D3030NonNumericCast(usize, String),
     D3050SecondArguement(String),
@@ -129,6 +130,7 @@ impl Error {
             Error::D3001StringNotFinite(..) => "D3001",
             Error::D3010EmptyPattern(..) => "D3010",
             Error::D3011NegativeLimit(..) => "D3011",
+            Error::D3012InvalidReplacementType(..) => "D3012",
             Error::D3020NegativeLimit(..) => "D3020",
             Error::D3030NonNumericCast(..) => "D3030",
             Error::D3050SecondArguement(..) => "D3050",
@@ -242,6 +244,7 @@ impl fmt::Display for Error {
                 write!(f, "{}: Second argument of replace function cannot be an empty string", p),
             D3011NegativeLimit(ref p) =>
                 write!(f, "{}: Fourth argument of replace function must evaluate to a positive number", p),
+            D3012InvalidReplacementType(ref p) => write!(f, "{}: Attempted to replace a matched string with a non-string value", p),
             D3020NegativeLimit(ref p) =>
                 write!(f, "{}: Third argument of split function must evaluate to a positive number", p),
             D3030NonNumericCast(ref p, ref n) =>
