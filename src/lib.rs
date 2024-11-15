@@ -775,4 +775,13 @@ mod tests {
             assert_eq!(err.code(), "T0410", "Expected type error from {expr}");
         }
     }
+
+    #[test]
+    fn evaluate_millis_returns_number() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$millis()", &arena).unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        assert!(result.is_number());
+    }
 }

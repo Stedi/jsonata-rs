@@ -1073,12 +1073,10 @@ pub fn fn_millis<'a>(
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards");
 
-    // Turning the timestamp to a string given that the stable millis function
-    // returns a u128 and the `Value::number` only supports f64.
-    Ok(Value::string(
+    Ok(Value::number_from_u128(
         context.arena,
-        timestamp.as_millis().to_string().as_str(),
-    ))
+        timestamp.as_millis(),
+    )?)
 }
 
 pub fn fn_uuid<'a>(
