@@ -695,9 +695,7 @@ pub fn fn_replace<'a>(
 
             return Ok(Value::string(context.arena, &replaced_string));
         }
-        _ => {
-            bad_arg!(context, 2);
-        }
+        _ => bad_arg!(context, 2),
     };
 
     let mut result = String::new();
@@ -742,6 +740,7 @@ pub fn fn_replace<'a>(
                     "".to_string()
                 }
             }
+
             Value::Lambda { .. } => {
                 println!("Lambda");
                 let mut func_args = vec![Value::string(context.arena, match_str)];
@@ -761,119 +760,12 @@ pub fn fn_replace<'a>(
                     return Err(Error::D3012InvalidReplacementType(context.char_index));
                 }
             }
-            _ => {
-                println!("Else");
-                #[derive(Debug)]
-                enum S {
-                    Literal,
-                    Dollar,
-                    Group(u32),
-                    End,
-                }
 
-                let mut state = S::Literal;
-                let mut acc = String::new();
-                let groups: Vec<Option<Range>> = m.groups().collect();
-
-                let replacement_str = replacement_value.as_str();
-                let mut chars = replacement_str.chars();
-
-                loop {
-                    let c = chars.next();
-                    match (&state, c) {
-                        (S::Literal, Some('$')) => {
-                            state = S::Dollar;
-                        }
-                        (S::Literal, Some(c)) => {
-                            acc.push(c);
-                        }
-                        (S::Dollar, Some('$')) => {
-                            acc.push('$');
-                            state = S::Literal;
-                        }
-
-                        // Start parsing a group number
-                        (S::Dollar, Some(c)) if c.is_numeric() => {
-                            let digit = c
-                                .to_digit(10)
-                                .expect("numeric char failed to parse as digit");
-                            state = S::Group(digit);
-                        }
-
-                        // `$` followed by something other than a group number
-                        // (including end of string) is treated as a literal `$`
-                        (S::Dollar, c) => {
-                            acc.push('$');
-                            c.inspect(|c| acc.push(*c));
-                            state = S::Literal;
-                        }
-
-                        // Still parsing a group number
-                        (S::Group(so_far), Some(c)) if c.is_numeric() => {
-                            // FIXME: bug, the jsonata reference behavior for $N is to match any valid prefix with a group number
-                            let digit = c
-                                .to_digit(10)
-                                .expect("numeric char failed to parse as digit");
-
-                            let next = so_far * 10 + digit;
-                            let groups_len = groups.len() as u32;
-                            // A bizarre behavior of the jsonata reference implementation is that in $NM if NM is not a
-                            // valid group number, it will use $N and treat M as a literal. This is not documented behavior and
-                            // feels like a bug, but our test cases cover it in several ways.
-                            if next >= groups_len {
-                                if let Some(match_range) =
-                                    groups.get(*so_far as usize).and_then(|x| x.as_ref())
-                                {
-                                    str_value
-                                        .get(match_range.start..match_range.end)
-                                        .inspect(|s| acc.push_str(s));
-                                } else {
-                                    // The capture group did not match.
-                                }
-
-                                acc.push(c);
-
-                                state = S::Literal
-                            } else {
-                                state = S::Group(next);
-                            }
-                        }
-
-                        // The group number is complete, so we can now process it
-                        (S::Group(index), c) => {
-                            if let Some(match_range) =
-                                groups.get(*index as usize).and_then(|x| x.as_ref())
-                            {
-                                str_value
-                                    .get(match_range.start..match_range.end)
-                                    .inspect(|s| acc.push_str(s));
-                            } else {
-                                // The capture group did not match.
-                            }
-
-                            if let Some(c) = c {
-                                if c == '$' {
-                                    state = S::Dollar;
-                                } else {
-                                    acc.push(c);
-                                    state = S::Literal;
-                                }
-                            } else {
-                                state = S::End;
-                            }
-                        }
-                        (S::Literal, None) => {
-                            state = S::End;
-                        }
-
-                        (S::End, _) => {
-                            break;
-                        }
-                    }
-                }
-
-                acc
+            Value::String(replacement_str) => {
+                evaluate_replacement_string(replacement_str.as_str(), &str_value, &m)
             }
+
+            _ => bad_arg!(context, 3),
         };
 
         result.push_str(&replacement_text);
@@ -883,6 +775,130 @@ pub fn fn_replace<'a>(
     result.push_str(&str_value[last_end..]);
 
     Ok(Value::string(context.arena, &result))
+}
+
+/// Parse and evaluate a replacement string.
+///
+/// Parsing the string is context-dependent because of an odd jsonata behavior:
+/// - if $NM is a valid match group number, it is replaced with the match.
+/// - if $NM is not valid, it is replaced with the match for $M followed by a literal 'N'.
+///
+/// This is why the `Match` object is needed.
+///
+/// # Parameters
+/// - `replacement_str`: The replacement string to parse and evaluate.
+/// - `str_value`: The complete original string, the first argument to `$replace`.
+/// - `m`: The `Match` object for the current match which is being replaced.
+fn evaluate_replacement_string(
+    replacement_str: &str,
+    str_value: &str,
+    m: &regress::Match,
+) -> String {
+    #[derive(Debug)]
+    enum S {
+        Literal,
+        Dollar,
+        Group(u32),
+        End,
+    }
+
+    let mut state = S::Literal;
+    let mut acc = String::new();
+
+    let groups: Vec<Option<Range>> = m.groups().collect();
+    let mut chars = replacement_str.chars();
+
+    loop {
+        let c = chars.next();
+        match (&state, c) {
+            (S::Literal, Some('$')) => {
+                state = S::Dollar;
+            }
+            (S::Literal, Some(c)) => {
+                acc.push(c);
+            }
+            (S::Dollar, Some('$')) => {
+                acc.push('$');
+                state = S::Literal;
+            }
+
+            // Start parsing a group number
+            (S::Dollar, Some(c)) if c.is_numeric() => {
+                let digit = c
+                    .to_digit(10)
+                    .expect("numeric char failed to parse as digit");
+                state = S::Group(digit);
+            }
+
+            // `$` followed by something other than a group number
+            // (including end of string) is treated as a literal `$`
+            (S::Dollar, c) => {
+                acc.push('$');
+                c.inspect(|c| acc.push(*c));
+                state = S::Literal;
+            }
+
+            // Still parsing a group number
+            (S::Group(so_far), Some(c)) if c.is_numeric() => {
+                let digit = c
+                    .to_digit(10)
+                    .expect("numeric char failed to parse as digit");
+
+                let next = so_far * 10 + digit;
+                let groups_len = groups.len() as u32;
+
+                // A bizarre behavior of the jsonata reference implementation is that in $NM if NM is not a
+                // valid group number, it will use $N and treat M as a literal. This is not documented behavior and
+                // feels like a bug, but our test cases cover it in several ways.
+                if next >= groups_len {
+                    if let Some(match_range) = groups.get(*so_far as usize).and_then(|x| x.as_ref())
+                    {
+                        str_value
+                            .get(match_range.start..match_range.end)
+                            .inspect(|s| acc.push_str(s));
+                    } else {
+                        // The capture group did not match.
+                    }
+
+                    acc.push(c);
+
+                    state = S::Literal
+                } else {
+                    state = S::Group(next);
+                }
+            }
+
+            // The group number is complete, so we can now process it
+            (S::Group(index), c) => {
+                if let Some(match_range) = groups.get(*index as usize).and_then(|x| x.as_ref()) {
+                    str_value
+                        .get(match_range.start..match_range.end)
+                        .inspect(|s| acc.push_str(s));
+                } else {
+                    // The capture group did not match.
+                }
+
+                if let Some(c) = c {
+                    if c == '$' {
+                        state = S::Dollar;
+                    } else {
+                        acc.push(c);
+                        state = S::Literal;
+                    }
+                } else {
+                    state = S::End;
+                }
+            }
+            (S::Literal, None) => {
+                state = S::End;
+            }
+
+            (S::End, _) => {
+                break;
+            }
+        }
+    }
+    acc
 }
 
 pub fn fn_split<'a>(
