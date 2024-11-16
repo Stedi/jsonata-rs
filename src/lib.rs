@@ -758,4 +758,30 @@ mod tests {
         ));
         assert_eq!(result_invalid, empty_array);
     }
+
+    #[test]
+    fn evaluate_expect_type_errors() {
+        for expr in [
+            "$fromMillis('foo')",
+            "$fromMillis(1, 1)",
+            "$fromMillis(1, '', 1)",
+            "$toMillis(1)",
+            "$toMillis('1970-01-01T00:00:00.000Z', 1)",
+        ] {
+            let arena = Bump::new();
+            let jsonata = JsonAta::new(expr, &arena).unwrap();
+            let err = jsonata.evaluate(None, None).unwrap_err();
+
+            assert_eq!(err.code(), "T0410", "Expected type error from {expr}");
+        }
+    }
+
+    #[test]
+    fn evaluate_millis_returns_number() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$millis()", &arena).unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        assert!(result.is_number());
+    }
 }
