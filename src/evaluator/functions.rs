@@ -6,7 +6,6 @@ use regress::{Range, Regex};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::usize;
 use uuid::Uuid;
 
 use crate::datetime::{format_custom_date, parse_custom_format, parse_timezone_offset};
@@ -98,6 +97,11 @@ impl<'a, 'e> FunctionContext<'a, 'e> {
     ) -> Result<&'a Value<'a>> {
         self.evaluator
             .apply_function(self.char_index, self.input, proc, args, &self.frame)
+    }
+
+    pub fn trampoline_evaluate_value(&self, value: &'a Value<'a>) -> Result<&'a Value<'a>> {
+        self.evaluator
+            .trampoline_evaluate_value(value, self.input, &self.frame)
     }
 }
 
@@ -731,15 +735,17 @@ pub fn fn_replace<'a>(
                 }
             }
 
-            Value::Lambda { .. } => {
+            func @ Value::Lambda { .. } => {
                 let match_list = evaluate_match(context.arena, regex, match_str, None);
 
-                let func_result = context.evaluate_function(replacement_value, &[match_list])?;
+                let args = &[match_list];
 
-                if let Value::String(ref s) = func_result {
-                    s.as_str().to_string()
-                } else {
-                    return Err(Error::D3012InvalidReplacementType(context.char_index));
+                let func_result =
+                    context.trampoline_evaluate_value(context.evaluate_function(func, args)?)?;
+
+                match func_result {
+                    Value::String(ref s) => s.as_str().to_string(),
+                    _ => return Err(Error::D3012InvalidReplacementType(context.char_index)),
                 }
             }
 
