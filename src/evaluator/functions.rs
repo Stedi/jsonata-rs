@@ -230,7 +230,8 @@ pub fn fn_map<'a>(
             args.push(arr);
         }
 
-        let mapped = context.evaluate_function(func, &args)?;
+        let mapped = context.trampoline_evaluate_value(context.evaluate_function(func, &args)?)?;
+
         if !mapped.is_undefined() {
             result.push(mapped);
         }
