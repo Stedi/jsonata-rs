@@ -2,10 +2,11 @@ use base64::Engine;
 use chrono::{TimeZone, Utc};
 use hashbrown::{DefaultHashBuilder, HashMap};
 use rand::Rng;
-use regress::Range;
+use regress::{Range, Regex};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::usize;
 use uuid::Uuid;
 
 use crate::datetime::{format_custom_date, parse_custom_format, parse_timezone_offset};
@@ -716,44 +717,25 @@ pub fn fn_replace<'a>(
 
         let match_str = &str_value[m.start()..m.end()];
 
-        // Extract capture groups as values
-        let capture_groups: Vec<&str> = m
-            .groups()
-            .filter_map(|group| group.map(|range| &str_value[range.start..range.end]))
-            .collect();
-
         // Process replacement based on the replacement_value type
         let replacement_text = match replacement_value {
             Value::NativeFn { func, .. } => {
-                print!("NativeFn");
-                let mut func_args = vec![Value::string(context.arena, match_str)];
-                func_args.extend(
-                    capture_groups
-                        .iter()
-                        .map(|&s| Value::string(context.arena, s)),
-                );
-                let func_result =
-                    func(context.clone(), &[Value::string(context.arena, match_str)])?;
+                let match_list = evaluate_match(context.arena, regex, match_str, None);
+
+                let func_result = func(context.clone(), &[match_list])?;
+
                 if let Value::String(ref s) = func_result {
                     s.as_str().to_string()
                 } else {
-                    "".to_string()
+                    return Err(Error::D3012InvalidReplacementType(context.char_index));
                 }
             }
 
             Value::Lambda { .. } => {
-                println!("Lambda");
-                let mut func_args = vec![Value::string(context.arena, match_str)];
-                func_args.extend(
-                    capture_groups
-                        .iter()
-                        .map(|&s| Value::string(context.arena, s)),
-                );
+                let match_list = evaluate_match(context.arena, regex, match_str, None);
 
-                let func_result = context.evaluate_function(
-                    replacement_value,
-                    &[Value::string(context.arena, match_str)],
-                )?;
+                let func_result = context.evaluate_function(replacement_value, &[match_list])?;
+
                 if let Value::String(ref s) = func_result {
                     s.as_str().to_string()
                 } else {
@@ -2047,58 +2029,89 @@ pub fn fn_match<'a>(
         _ => return Err(Error::D3010EmptyPattern(context.char_index)),
     };
 
-    let limit = args
-        .get(2)
-        .and_then(|val| {
-            if val.is_number() {
-                Some(val.as_f64() as usize)
-            } else {
-                None
-            }
-        })
-        .unwrap_or(usize::MAX);
+    let limit = args.get(2).and_then(|val| {
+        if val.is_number() {
+            Some(val.as_f64() as usize)
+        } else {
+            None
+        }
+    });
 
-    let key_match = BumpString::from_str_in("match", context.arena);
-    let key_index = BumpString::from_str_in("index", context.arena);
-    let key_groups = BumpString::from_str_in("groups", context.arena);
+    Ok(evaluate_match(
+        context.arena,
+        regex_literal.get_regex(),
+        &value_to_validate.as_str(),
+        limit,
+    ))
+}
+
+/// An inner helper which evaluates the `$match` function.
+///
+/// The return value is a Value::Array which looks like:
+///
+/// [
+///   {
+///     "match": "ab",
+///     "index": 0,
+///     "groups": ["b"]
+///   },
+///   {
+///     "match": "abb",
+///     "index": 2,
+///     "groups": ["bb"]
+///   },
+///   {
+///     "match": "abb",
+///     "index": 5,
+///     "groups": ["bb" ]
+///   }
+/// ]
+fn evaluate_match<'a>(
+    arena: &'a Bump,
+    regex: &Regex,
+    input_str: &str,
+    limit: Option<usize>,
+) -> &'a Value<'a> {
+    let limit = limit.unwrap_or(usize::MAX);
+
+    let key_match = BumpString::from_str_in("match", arena);
+    let key_index = BumpString::from_str_in("index", arena);
+    let key_groups = BumpString::from_str_in("groups", arena);
 
     let mut matches: bumpalo::collections::Vec<&Value<'a>> =
-        bumpalo::collections::Vec::new_in(context.arena);
+        bumpalo::collections::Vec::new_in(arena);
 
-    for (i, m) in regex_literal
-        .get_regex()
-        .find_iter(&value_to_validate.as_str())
-        .enumerate()
-    {
+    for (i, m) in regex.find_iter(input_str).enumerate() {
         if i >= limit {
             break;
         }
 
-        let matched_text = &value_to_validate.as_str()[m.start()..m.end()];
-        let match_str = context
-            .arena
-            .alloc(Value::string(context.arena, matched_text));
+        let matched_text = &input_str[m.start()..m.end()];
+        let match_str = arena.alloc(Value::string(arena, matched_text));
 
-        let index_val = context
-            .arena
-            .alloc(Value::number(context.arena, m.start() as f64));
+        let index_val = arena.alloc(Value::number(arena, i as f64));
 
-        let group_vec: bumpalo::collections::Vec<&Value<'a>> =
-            bumpalo::collections::Vec::new_in(context.arena);
-        let groups_val = context
-            .arena
-            .alloc(Value::Array(group_vec, ArrayFlags::empty()));
+        // Extract capture groups as values
+        let capture_groups = m
+            .groups()
+            .filter_map(|group| group.map(|range| &input_str[range.start..range.end]))
+            .map(|s| BumpString::from_str_in(s, arena))
+            .map(|s| &*arena.alloc(Value::String(s)))
+            // Skip the first group which is the entire match
+            .skip(1);
+
+        let group_vec = BumpVec::from_iter_in(capture_groups, arena);
+
+        let groups_val = arena.alloc(Value::Array(group_vec, ArrayFlags::empty()));
 
         let mut match_obj: HashMap<BumpString, &Value<'a>, DefaultHashBuilder, &Bump> =
-            HashMap::with_capacity_and_hasher_in(3, DefaultHashBuilder::default(), context.arena);
+            HashMap::with_capacity_and_hasher_in(3, DefaultHashBuilder::default(), arena);
         match_obj.insert(key_match.clone(), match_str);
         match_obj.insert(key_index.clone(), index_val);
         match_obj.insert(key_groups.clone(), groups_val);
 
-        matches.push(context.arena.alloc(Value::Object(match_obj)));
+        matches.push(arena.alloc(Value::Object(match_obj)));
     }
 
-    Ok(context
-        .arena
-        .alloc(Value::Array(matches, ArrayFlags::empty())))
+    arena.alloc(Value::Array(matches, ArrayFlags::empty()))
 }
