@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.2.0](https://github.com/Stedi/jsonata-rs/compare/v0.1.10...v0.2.0) - 2024-11-01
+
+### Added
+
+- support additional functions ([#110](https://github.com/Stedi/jsonata-rs/pull/110))
+- support parsing regex literals ([#111](https://github.com/Stedi/jsonata-rs/pull/111))
+
+### Fixed
+
+- used steps in the wrong order ([#117](https://github.com/Stedi/jsonata-rs/pull/117))
+- use app token when checking out repo so that PR triggers will run ([#116](https://github.com/Stedi/jsonata-rs/pull/116))
+
+### Other
+
+- github app ([#115](https://github.com/Stedi/jsonata-rs/pull/115))
+- remove github token from action ([#113](https://github.com/Stedi/jsonata-rs/pull/113))
+- add non_exhaustive to the Error enum ([#112](https://github.com/Stedi/jsonata-rs/pull/112))
+- create CODEOWNERS; add security policy ([#109](https://github.com/Stedi/jsonata-rs/pull/109))
+- add OSV-scanner ([#107](https://github.com/Stedi/jsonata-rs/pull/107))
+- add OSSF Scorecard and badge ([#105](https://github.com/Stedi/jsonata-rs/pull/105))
+- update secrets env var ([#103](https://github.com/Stedi/jsonata-rs/pull/103))
+
+## [0.1.10](https://github.com/Stedi/jsonata-rs/compare/v0.1.9...v0.1.10) - 2024-10-31
+
+### Added
+
+- support a custom fn to handle regex pattern ([#97](https://github.com/Stedi/jsonata-rs/pull/97))
+
+### Fixed
+
+- using the default token prevents the release PR from having PR checks run ([#101](https://github.com/Stedi/jsonata-rs/pull/101))
+
+### Other
+
+- Automate Release Pipeline || Test Token Update ([#94](https://github.com/Stedi/jsonata-rs/pull/94))
+- clean up README.md and status.md ([#99](https://github.com/Stedi/jsonata-rs/pull/99))
+- add release-plz workflow ([#98](https://github.com/Stedi/jsonata-rs/pull/98))
+
 ### Added
 
 - Context and positional binds

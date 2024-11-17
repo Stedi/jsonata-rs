@@ -5,12 +5,12 @@ use bumpalo::boxed::Box;
 use bumpalo::collections::String as BumpString;
 use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
-use hashbrown::hash_map::DefaultHashBuilder;
+use hashbrown::DefaultHashBuilder;
 use hashbrown::HashMap;
 
 use super::frame::Frame;
 use super::functions::FunctionContext;
-use crate::parser::ast::{Ast, AstKind};
+use crate::parser::ast::{Ast, AstKind, RegexLiteral};
 use crate::{Error, Result};
 
 pub mod impls;
@@ -37,7 +37,9 @@ pub const UNDEFINED: Value = Value::Undefined;
 pub const TRUE: Value = Value::Bool(true);
 pub const FALSE: Value = Value::Bool(false);
 
-/// The core value type for input, output and evaluation. There's a lot of lifetimes here to avoid
+/// The core value type for input, output and evaluation.
+///
+/// There's a lot of lifetimes here to avoid
 /// cloning any part of the input that should be kept in the output, avoiding heap allocations for
 /// every Value, and allowing structural sharing.
 ///
@@ -49,6 +51,7 @@ pub enum Value<'a> {
     Number(f64),
     Bool(bool),
     String(BumpString<'a>),
+    Regex(RegexLiteral),
     Array(BumpVec<'a, &'a Value<'a>>, ArrayFlags),
     Object(HashMap<BumpString<'a>, &'a Value<'a>, DefaultHashBuilder, &'a Bump>),
     Range(Range<'a>),
@@ -91,6 +94,15 @@ impl<'a> Value<'a> {
 
     pub fn number(arena: &Bump, value: impl Into<f64>) -> &mut Value {
         arena.alloc(Value::Number(value.into()))
+    }
+
+    pub fn number_from_u128(arena: &Bump, value: u128) -> Result<&mut Value> {
+        let value_f64 = value as f64;
+        if value_f64 as u128 != value {
+            // number is too large to retain precision
+            return Err(Error::D1001NumberOfOutRange(value_f64));
+        };
+        Ok(arena.alloc(Value::Number(value_f64)))
     }
 
     pub fn string(arena: &'a Bump, value: &str) -> &'a mut Value<'a> {
@@ -307,6 +319,7 @@ impl<'a> Value<'a> {
                 }
             },
             Value::Object(ref o) => !o.is_empty(),
+            Value::Regex(_) => true, // Treat Regex as truthy if it exists
             Value::Lambda { .. } | Value::NativeFn { .. } | Value::Transformer { .. } => false,
             Value::Range(ref r) => !r.is_empty(),
         }
@@ -514,6 +527,7 @@ impl<'a> Value<'a> {
                 delete,
             } => Value::transformer(arena, pattern, update, delete),
             Self::Range(range) => Value::range_from(arena, range),
+            Self::Regex(regex) => arena.alloc(Value::Regex(regex.clone())),
         }
     }
 

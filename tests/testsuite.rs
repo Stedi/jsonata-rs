@@ -104,12 +104,24 @@ fn test_case(resource: &str) {
                                 }
                                 assert!(found);
                             }
+                        } else if case["result_re"].is_string() {
+                            // Ability to define a regular expression to match the result. This strategy is useful
+                            // to validate the result of an expression that's not deterministic (like the $millis() function).
+                            let regex_pattern =
+                                regress::Regex::with_flags(case["result_re"].as_str().as_ref(), "")
+                                    .expect("Should have a valid regex expression");
+
+                            assert!(
+                                regex_pattern.find(&result.as_str()).is_some(),
+                                "Value: {result:?}, did not match expected result_re",
+                            );
                         } else {
+                            eprintln!("RESULT: {}", result);
                             assert_eq!(result, expected_result);
                         }
                     }
                     Err(error) => {
-                        eprintln!("{}", error);
+                        eprintln!("ERROR: {}", error);
                         let code = if !case["error"].is_undefined() {
                             &case["error"]["code"]
                         } else {

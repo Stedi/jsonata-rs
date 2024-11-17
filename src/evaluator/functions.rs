@@ -1,15 +1,20 @@
 use base64::Engine;
 use chrono::{TimeZone, Utc};
-use hashbrown::HashMap;
+use hashbrown::{DefaultHashBuilder, HashMap};
 use rand::Rng;
+use regress::Regex;
 use serde_json::Value as JsonValue;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
+use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
 use crate::datetime::{format_custom_date, parse_custom_format, parse_timezone_offset};
+use crate::evaluator::RegexLiteral;
 use crate::parser::expressions::check_balanced_brackets;
 
 use bumpalo::collections::CollectIn;
+use bumpalo::collections::String as BumpString;
 use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
 
@@ -184,6 +189,7 @@ pub fn fn_boolean<'a>(
                 Value::bool(false)
             }
         },
+        Value::Regex(_) => Value::bool(true),
         Value::Lambda { .. } | Value::NativeFn { .. } | Value::Transformer { .. } => {
             Value::bool(false)
         }
@@ -998,30 +1004,28 @@ pub fn from_millis<'a>(
     }
 
     max_args!(context, args, 3);
+    assert_arg!(args[0].is_number(), context, 1);
+
     let millis = args[0].as_f64() as i64;
 
-    let timestamp = Utc
-        .timestamp_millis_opt(millis)
-        .single()
-        .ok_or_else(|| Error::T0410ArgumentNotValid(0, 1, context.name.to_string()))?;
+    let Some(timestamp) = Utc.timestamp_millis_opt(millis).single() else {
+        bad_arg!(context, 1);
+    };
 
     let (picture, timezone) = match args {
-        [_, picture, timezone] => (
-            if picture.is_string() {
-                picture.as_str()
-            } else {
-                Cow::Borrowed("") // Treat non-strings (like ()) as empty strings
-            },
-            timezone.as_str(),
-        ),
-        [_, picture] => (
-            if picture.is_string() {
-                picture.as_str()
-            } else {
-                Cow::Borrowed("")
-            },
-            Cow::Borrowed(""),
-        ),
+        [_, picture, timezone] if picture.is_undefined() => {
+            assert_arg!(timezone.is_string(), context, 3);
+            (Cow::Borrowed(""), timezone.as_str())
+        }
+        [_, picture, timezone] => {
+            assert_arg!(picture.is_string(), context, 2);
+            assert_arg!(timezone.is_string(), context, 3);
+            (picture.as_str(), timezone.as_str())
+        }
+        [_, picture] => {
+            assert_arg!(picture.is_string(), context, 2);
+            (picture.as_str(), Cow::Borrowed(""))
+        }
         _ => (Cow::Borrowed(""), Cow::Borrowed("")),
     };
 
@@ -1061,6 +1065,34 @@ pub fn from_millis<'a>(
     ))
 }
 
+pub fn fn_millis<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 0);
+
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+
+    Ok(Value::number_from_u128(
+        context.arena,
+        timestamp.as_millis(),
+    )?)
+}
+
+pub fn fn_uuid<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 0);
+
+    Ok(Value::string(
+        context.arena,
+        Uuid::new_v4().to_string().as_str(),
+    ))
+}
+
 pub fn to_millis<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
@@ -1072,6 +1104,7 @@ pub fn to_millis<'a>(
     }
 
     max_args!(context, args, 2);
+    assert_arg!(args[0].is_string(), context, 1);
 
     // Extract the timestamp string
     let timestamp_str = args[0].as_str();
@@ -1081,7 +1114,11 @@ pub fn to_millis<'a>(
 
     // Extract the optional picture string
     let picture = match args {
-        [_, picture] => picture.as_str(),
+        [_, picture] if picture.is_undefined() => Cow::Borrowed(""),
+        [_, picture] => {
+            assert_arg!(picture.is_string(), context, 2);
+            picture.as_str()
+        }
         _ => Cow::Borrowed(""),
     };
 
@@ -1710,6 +1747,87 @@ pub fn fn_pad<'a>(
     Ok(Value::string(context.arena, &result))
 }
 
+pub fn fn_match<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    let value_to_validate = match args.first().copied() {
+        Some(val) if !val.is_undefined() => val,
+        _ => return Ok(Value::undefined()),
+    };
+    assert_arg!(value_to_validate.is_string(), context, 1);
+
+    let pattern_value = match args.get(1).copied() {
+        Some(val) => val,
+        _ => return Err(Error::D3010EmptyPattern(context.char_index)),
+    };
+
+    let regex_literal = match pattern_value {
+        Value::Regex(ref regex_literal) => regex_literal,
+        Value::String(ref s) => {
+            let regex = RegexLiteral::new(s.as_str(), false, false)
+                .map_err(|_| Error::D3010EmptyPattern(context.char_index))?;
+            &*context.arena.alloc(regex)
+        }
+        _ => return Err(Error::D3010EmptyPattern(context.char_index)),
+    };
+
+    let limit = args
+        .get(2)
+        .and_then(|val| {
+            if val.is_number() {
+                Some(val.as_f64() as usize)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(usize::MAX);
+
+    let key_match = BumpString::from_str_in("match", context.arena);
+    let key_index = BumpString::from_str_in("index", context.arena);
+    let key_groups = BumpString::from_str_in("groups", context.arena);
+
+    let mut matches: bumpalo::collections::Vec<&Value<'a>> =
+        bumpalo::collections::Vec::new_in(context.arena);
+
+    for (i, m) in regex_literal
+        .get_regex()
+        .find_iter(&value_to_validate.as_str())
+        .enumerate()
+    {
+        if i >= limit {
+            break;
+        }
+
+        let matched_text = &value_to_validate.as_str()[m.start()..m.end()];
+        let match_str = context
+            .arena
+            .alloc(Value::string(context.arena, matched_text));
+
+        let index_val = context
+            .arena
+            .alloc(Value::number(context.arena, m.start() as f64));
+
+        let group_vec: bumpalo::collections::Vec<&Value<'a>> =
+            bumpalo::collections::Vec::new_in(context.arena);
+        let groups_val = context
+            .arena
+            .alloc(Value::Array(group_vec, ArrayFlags::empty()));
+
+        let mut match_obj: HashMap<BumpString, &Value<'a>, DefaultHashBuilder, &Bump> =
+            HashMap::with_capacity_and_hasher_in(3, DefaultHashBuilder::default(), context.arena);
+        match_obj.insert(key_match.clone(), match_str);
+        match_obj.insert(key_index.clone(), index_val);
+        match_obj.insert(key_groups.clone(), groups_val);
+
+        matches.push(context.arena.alloc(Value::Object(match_obj)));
+    }
+
+    Ok(context
+        .arena
+        .alloc(Value::Array(matches, ArrayFlags::empty())))
+}
+
 pub fn fn_eval<'a>(
     context: FunctionContext<'a, '_>,
     args: &[&'a Value<'a>],
@@ -1750,7 +1868,6 @@ fn preprocess_and_eval_jsonata<'a>(
     // Check if the input contains embedded JSONata expressions like $string(2)
     let preprocessed_str = preprocess_jsonata_expressions(context, expr_str, override_context)?;
 
-    println!("Preprocessed JSONata: {}", preprocessed_str);
     // Now attempt to parse the preprocessed string as JSON
     match serde_json::from_str::<JsonValue>(&preprocessed_str) {
         Ok(parsed_json) => {
@@ -1772,38 +1889,59 @@ fn preprocess_jsonata_expressions<'a>(
     expr_str: &str,
     override_context: &'a Value<'a>,
 ) -> Result<String> {
-    let mut result_str = expr_str.to_string();
+    let re = regress::Regex::new(r"\$string\((\d+)\)")
+        .map_err(|e| Error::S0303InvalidRegex(context.char_index, e.to_string()))?;
 
-    // Use a regex or manual search to detect JSONata expressions inside the JSON string
-    let re: regex::Regex = regex::Regex::new(r"\$string\((\d+)\)").unwrap(); // Detect $string(2)
+    let mut result_str = String::new();
+    let mut last_end = 0;
 
-    println!("Original JSONata: {}", result_str);
-    println!("Override Context: {:?}", override_context);
-    println!("re: {:?}", re);
-    // Replace each detected JSONata expression with its evaluated result
-    result_str = re
-        .replace_all(&result_str, |caps: &regex::Captures| {
-            let expression = format!("$string({})", &caps[1]);
-            println!("Detected JSONata expression: {}", expression);
-            if let Some(eval_result) =
-                evaluate_jsonata_expression(context.clone(), &expression, &[override_context])
-            {
-                println!("Successfully evaluated JSONata: {}", eval_result);
-                match eval_result {
-                    Value::String(s) => format!("\"{}\"", s), // Ensure string values are quoted
-                    Value::Number(n) => format!("{}", n),     // Handle number values
-                    Value::Bool(b) => format!("{}", b),       // Handle boolean values if needed
-                    Value::Null => String::from("null"),      // Handle null values
-                    _ => String::from("null"), // Fallback for undefined or other types
+    // Use `find_iter` to locate all matches
+    for m in re.find_iter(expr_str) {
+        // Get the matched text
+        let match_str = &expr_str[m.start()..m.end()];
+
+        // Extract the capture group by slicing the match string
+        // `re` is compiled with the pattern `\d+` in the parentheses
+        let group_start = match_str
+            .find('(')
+            .ok_or_else(|| Error::S0302UnterminatedRegex(context.char_index))?
+            + 1; // Start of the argument
+        let group_end = match_str
+            .find(')')
+            .ok_or_else(|| Error::S0302UnterminatedRegex(context.char_index))?;
+        let arg = &match_str[group_start..group_end]; // e.g., `2`
+
+        // Construct the expression
+        let expression = format!("$string({})", arg);
+
+        // Evaluate the JSONata expression
+        let replacement =
+            match evaluate_jsonata_expression(context.clone(), &expression, &[override_context]) {
+                Some(Value::String(s)) => format!("\"{}\"", s),
+                Some(Value::Number(n)) => n.to_string(),
+                Some(Value::Bool(b)) => b.to_string(),
+                Some(Value::Null) => "null".to_string(),
+                Some(_) => "null".to_string(), // Fallback for unsupported types
+                None => {
+                    eprintln!(
+                        "Warning: Failed to evaluate JSONata expression `{}`",
+                        match_str
+                    );
+                    "null".to_string()
                 }
-            } else {
-                println!("Evaluation of JSONata expression failed.");
-                String::from("null") // Fallback if evaluation fails
-            }
-        })
-        .to_string();
+            };
 
-    println!("Preprocessed JSONata: {}", result_str);
+        // Append the portion before the match and the replacement
+        result_str.push_str(&expr_str[last_end..m.start()]);
+        result_str.push_str(&replacement);
+
+        // Update the end of the last match
+        last_end = m.end();
+    }
+
+    // Append the remainder of the string
+    result_str.push_str(&expr_str[last_end..]);
+
     Ok(result_str)
 }
 
@@ -1973,24 +2111,26 @@ fn evaluate_jsonata_object<'a>(
 fn parse_object_expression(object_expr: &str) -> Vec<(String, String)> {
     let mut result = Vec::new();
 
-    // Simplified parsing logic for object expressions like "{ 'Name': `Product Name`, 'Total': $eval('Price * Quantity') }"
-    let regex = regex::Regex::new(
-        r"'(\w+)':\s*(\`([^`]+)\`|\$eval$begin:math:text$'([^']+)'$end:math:text$)",
-    )
-    .unwrap();
+    let regex = Regex::new(r"'(\w+)':\s*(?:`([^`]+)`|\$eval\('([^']+)'\))").unwrap();
 
-    for cap in regex.captures_iter(object_expr) {
-        if let Some(field) = cap.get(1) {
-            if let Some(expr) = cap.get(3) {
-                result.push((field.as_str().to_string(), expr.as_str().to_string()));
+    for m in regex.find_iter(object_expr) {
+        let match_str = &object_expr[m.start()..m.end()];
+
+        // Parse the capture groups manually
+        let field_start = match_str.find('\'').unwrap() + 1;
+        let field_end = match_str[field_start..].find('\'').unwrap() + field_start;
+        let field = &match_str[field_start..field_end]; // Extracted field name
+
+        if let Some(expr_start) = match_str.find('`') {
             // Static value (e.g., `Product Name`)
-            } else if let Some(eval_expr) = cap.get(4) {
-                result.push((
-                    field.as_str().to_string(),
-                    format!("$eval({})", eval_expr.as_str()),
-                ));
-                // Evaluated value (e.g., $eval('Price * Quantity'))
-            }
+            let expr_end = match_str[expr_start + 1..].find('`').unwrap() + expr_start + 1;
+            let expr = &match_str[expr_start + 1..expr_end];
+            result.push((field.to_string(), expr.to_string()));
+        } else if let Some(eval_start) = match_str.find("$eval('") {
+            // Evaluated value (e.g., $eval('Price * Quantity'))
+            let eval_end = match_str[eval_start + 7..].find("')").unwrap() + eval_start + 7;
+            let eval_expr = &match_str[eval_start + 7..eval_end];
+            result.push((field.to_string(), format!("$eval({})", eval_expr)));
         }
     }
 

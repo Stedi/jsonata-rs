@@ -288,6 +288,10 @@ impl<T: Formatter> Serializer<T> {
             Value::Bool(false) => self.write(b"false"),
             Value::Array(..) | Value::Range(..) => self.write_array(value)?,
             Value::Object(..) => self.write_object(value)?,
+            Value::Regex(ref regex) => {
+                let pattern = format!("\"{}\"", regex.as_pattern());
+                self.write(pattern.as_bytes());
+            }
             Value::Lambda { .. } | Value::NativeFn { .. } | Value::Transformer { .. } => {
                 self.write(b"\"\"")
             }

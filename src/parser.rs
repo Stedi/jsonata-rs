@@ -135,6 +135,7 @@ mod tests {
     #[test_case("Account4.Order.Product^(>Price, <Quantity)" ; "sort 3")]
     #[test_case("Account5.Order.Product^(Price * Quantity)" ; "sort 4")]
     #[test_case("student[type='fulltime']^(DoB).name" ; "sort 5")]
+    #[test_case("/[0-9]+/" ; "regex literal")]
     #[test_case(
         r#"
         Invoice.(
@@ -271,6 +272,6 @@ mod tests {
     "# ; "complex expression"
     )]
     fn parser_tests(source: &str) {
-        let _ = parse(source);
+        parse(source).expect("failed to parse");
     }
 }

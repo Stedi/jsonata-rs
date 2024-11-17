@@ -53,7 +53,7 @@ impl<'a> JsonAta<'a> {
     }
 
     fn json_value_to_value(&self, json_value: &serde_json::Value) -> &'a mut Value<'a> {
-        return match json_value {
+        match json_value {
             serde_json::Value::Null => Value::null(self.arena),
             serde_json::Value::Bool(b) => self.arena.alloc(Value::Bool(*b)),
             serde_json::Value::Number(n) => Value::number(self.arena, n.as_f64().unwrap()),
@@ -65,16 +65,16 @@ impl<'a> JsonAta<'a> {
                     array.push(self.json_value_to_value(v))
                 }
 
-                return array;
+                array
             }
             serde_json::Value::Object(o) => {
                 let object = Value::object_with_capacity(self.arena, o.len());
                 for (k, v) in o.iter() {
                     object.insert(k, self.json_value_to_value(v));
                 }
-                return object;
+                object
             }
-        };
+        }
     }
 
     pub fn evaluate(
@@ -147,6 +147,7 @@ impl<'a> JsonAta<'a> {
         bind_native!("lookup", 2, fn_lookup);
         bind_native!("lowercase", 1, fn_lowercase);
         bind_native!("map", 2, fn_map);
+        bind_native!("match", 2, fn_match);
         bind_native!("max", 1, fn_max);
         bind_native!("merge", 1, fn_merge);
         bind_native!("min", 1, fn_min);
@@ -171,6 +172,8 @@ impl<'a> JsonAta<'a> {
         bind_native!("trim", 1, fn_trim);
         bind_native!("uppercase", 1, fn_uppercase);
         bind_native!("zip", 1, fn_zip);
+        bind_native!("millis", 0, fn_millis);
+        bind_native!("uuid", 0, fn_uuid);
 
         let chain_ast = Some(parser::parse(
             "function($f, $g) { function($x){ $g($f($x)) } }",
@@ -183,7 +186,9 @@ impl<'a> JsonAta<'a> {
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, Offset};
-    use regex::Regex;
+    use regress::Regex;
+
+    use bumpalo::collections::String as BumpString;
 
     use super::*;
 
@@ -217,7 +222,7 @@ mod tests {
         let jsonata = JsonAta::new("$map([1,4,9,16], $squareroot)", &arena).unwrap();
         jsonata.register_function("squareroot", 1, |ctx, args| {
             let num = &args[0];
-            return Ok(Value::number(ctx.arena, (num.as_f64()).sqrt()));
+            Ok(Value::number(ctx.arena, (num.as_f64()).sqrt()))
         });
 
         let result = jsonata.evaluate(Some(r#"anything"#), None);
@@ -238,7 +243,7 @@ mod tests {
         let jsonata = JsonAta::new("$filter([1,4,9,16], $even)", &arena).unwrap();
         jsonata.register_function("even", 1, |_ctx, args| {
             let num = &args[0];
-            return Ok(Value::bool((num.as_f64()) % 2.0 == 0.0));
+            Ok(Value::bool((num.as_f64()) % 2.0 == 0.0))
         });
 
         let result = jsonata.evaluate(Some(r#"anything"#), None);
@@ -344,9 +349,12 @@ mod tests {
         let expected_format =
             Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(AM|PM|am|pm) GMT-05:00$").unwrap();
 
+        // Check if the pattern exists within the result_str
+        let is_match = expected_format.find_iter(&result_str).next().is_some();
         assert!(
-            expected_format.is_match(&result_str),
-            "Expected custom formatted time with timezone"
+            is_match,
+            "Expected custom formatted time with timezone, got: {}",
+            result_str
         );
     }
 
@@ -357,14 +365,15 @@ mod tests {
         let result = jsonata.evaluate(None, None).unwrap();
         let result_str = result.as_str();
 
-        println!("test_now_with_valid_format_but_no_timezone {}", result_str);
+        let expected_format =
+            Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(AM|PM|am|pm)$").unwrap();
 
         // Allow both AM/PM and am/pm in the regex
+        let is_match = expected_format.find_iter(&result_str).next().is_some();
         assert!(
-            Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(AM|PM|am|pm)$")
-                .unwrap()
-                .is_match(&result_str),
-            "Expected custom formatted time without timezone"
+            is_match,
+            "Expected custom formatted time without timezone, got: {}",
+            result_str
         );
     }
 
@@ -469,12 +478,16 @@ mod tests {
 
         println!("Formatted date: {}", result_str);
 
-        // Allow both AM/PM and am/pm in the regex
+        // Create the regex with regress::Regex
         let expected_format =
             Regex::new(r"^\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}(am|pm|AM|PM) GMT-05:00$").unwrap();
+
+        // Check if the pattern exists within result_str using find_iter
+        let is_match = expected_format.find_iter(&result_str).next().is_some();
         assert!(
-            expected_format.is_match(&result_str),
-            "Expected 12-hour format with timezone"
+            is_match,
+            "Expected 12-hour format with timezone, got: {}",
+            result_str
         );
     }
 
@@ -549,12 +562,16 @@ mod tests {
 
         println!("Formatted date: {}", result_str);
 
-        // Check if the formatted date matches the expected custom format
+        // Define the expected format using regress::Regex
         let expected_format =
             Regex::new(r"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2} GMT\+\d{2}:\d{2}$").unwrap();
+
+        // Simulate `is_match` by checking if there's at least one match in the string
+        let is_match = expected_format.find_iter(&result_str).next().is_some();
         assert!(
-            expected_format.is_match(&result_str),
-            "Expected custom formatted date with timezone"
+            is_match,
+            "Expected custom formatted date with timezone, got: {}",
+            result_str
         );
     }
 
@@ -700,16 +717,72 @@ mod tests {
     }
 
     #[test]
-    fn evaluate_with_reduce_single_data_element() {
+    fn test_match_regex_with_jsonata() {
         let arena = Bump::new();
 
-        // Passing an array with a single element ["data"]
-        let jsonata =
-            JsonAta::new("$reduce([\"data\"], function($i, $j){$i + $j})", &arena).unwrap();
-
+        // Test case with a valid postal code
+        let jsonata = JsonAta::new(r#"$match("123456789", /^[0-9]{9}$/)"#, &arena).unwrap();
         let result = jsonata.evaluate(None, None).unwrap();
 
-        // Since the array contains only one element "data", it should return "data"
-        assert_eq!(result.as_str(), "data"); // Expecting the string "data" as the result
+        // Expected output: an array with a single match object for "123456789"
+        let match_value: &Value = arena.alloc(Value::string(&arena, "123456789"));
+        let index_value: &Value = arena.alloc(Value::number(&arena, 0.0));
+        let groups_array: &Value = &*arena.alloc(Value::Array(
+            bumpalo::collections::Vec::new_in(&arena),
+            ArrayFlags::empty(),
+        ));
+
+        let mut match_obj = hashbrown::HashMap::with_capacity_in(3, &arena);
+        match_obj.insert(BumpString::from_str_in("match", &arena), match_value);
+        match_obj.insert(BumpString::from_str_in("index", &arena), index_value);
+        match_obj.insert(BumpString::from_str_in("groups", &arena), groups_array);
+
+        let expected_match: &Value = &*arena.alloc(Value::Object(match_obj));
+
+        assert_eq!(
+            result,
+            &*arena.alloc(Value::Array(
+                bumpalo::collections::Vec::from_iter_in([expected_match], &arena),
+                ArrayFlags::empty()
+            ))
+        );
+
+        // Test case with an invalid postal code
+        let jsonata_invalid =
+            JsonAta::new(r#"$match("12345-6789", /^[0-9]{9}$/)"#, &arena).unwrap();
+        let result_invalid = jsonata_invalid.evaluate(None, None).unwrap();
+
+        // Expected output for invalid input: an empty array
+        let empty_array: &Value = &*arena.alloc(Value::Array(
+            bumpalo::collections::Vec::new_in(&arena), // Empty array for no matches
+            ArrayFlags::empty(),
+        ));
+        assert_eq!(result_invalid, empty_array);
+    }
+
+    #[test]
+    fn evaluate_expect_type_errors() {
+        for expr in [
+            "$fromMillis('foo')",
+            "$fromMillis(1, 1)",
+            "$fromMillis(1, '', 1)",
+            "$toMillis(1)",
+            "$toMillis('1970-01-01T00:00:00.000Z', 1)",
+        ] {
+            let arena = Bump::new();
+            let jsonata = JsonAta::new(expr, &arena).unwrap();
+            let err = jsonata.evaluate(None, None).unwrap_err();
+
+            assert_eq!(err.code(), "T0410", "Expected type error from {expr}");
+        }
+    }
+
+    #[test]
+    fn evaluate_millis_returns_number() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$millis()", &arena).unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        assert!(result.is_number());
     }
 }

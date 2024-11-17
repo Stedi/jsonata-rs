@@ -1,57 +1,93 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:base", "group:monorepos", "group:recommended"],
+  "extends": [
+    "config:best-practices",
+    "config:recommended",
+    "group:monorepos",
+    "group:recommended"
+  ],
   "automerge": true,
   "platformAutomerge": true,
   "rebaseWhen": "conflicted",
-  "stabilityDays": 21,
+  "minimumReleaseAge": "21 days",
   "internalChecksFilter": "strict",
   "dependencyDashboard": true,
   "forkProcessing": "enabled",
   "major": {
     "automerge": false,
     "dependencyDashboardApproval": true,
-    "addLabels": ["major-upgrade"]
+    "addLabels": [
+      "major-upgrade"
+    ]
   },
   "replacement": {
     "automerge": false,
-    "addLabels": ["replacement"]
+    "addLabels": [
+      "replacement"
+    ]
   },
   "vulnerabilityAlerts": {
-    "addLabels": ["security"]
+    "addLabels": [
+      "security"
+    ]
   },
-  "transitiveRemediation": true,
   "packageRules": [
     {
       "groupName": "high-confidence-rust-minor",
-      "matchManagers": ["cargo"],
-      "matchUpdateTypes": ["minor"],
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
       "automerge": true,
       "platformAutomerge": true,
-      "addLabels": ["dependencies"],
-      "schedule": ["after 9am and before 5pm on Monday"]
+      "addLabels": [
+        "dependencies"
+      ],
+      "schedule": [
+        "after 9am and before 5pm on Monday"
+      ]
     },
     {
       "groupName": "high-confidence-rust-patch",
-      "matchManagers": ["cargo"],
-      "matchUpdateTypes": ["patch"],
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
       "automerge": true,
       "platformAutomerge": true,
-      "addLabels": ["dependencies"],
-      "schedule": ["after 9am and before 5pm on Monday"]
+      "addLabels": [
+        "dependencies"
+      ],
+      "schedule": [
+        "after 9am and before 5pm on Monday"
+      ]
     },
     {
-      "matchSourceUrlPrefixes": ["https://github.com/actions"],
-      "matchUpdateTypes": ["major"],
+      "matchUpdateTypes": [
+        "major"
+      ],
       "automerge": true,
       "platformAutomerge": true,
       "minimumReleaseAge": "3 days",
-      "schedule": ["after 9am and before 5pm on Monday"],
+      "schedule": [
+        "after 9am and before 5pm on Monday"
+      ],
       "groupName": "GitHub Actions upgrade (major)",
-      "addLabels": ["dependencies"]
+      "addLabels": [
+        "dependencies"
+      ],
+      "matchSourceUrls": [
+        "https://github.com/actions{/,}**"
+      ]
     },
     {
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "github-actions"
+      ],
       "matchUpdateTypes": [
         "minor",
         "patch",
@@ -64,9 +100,13 @@
       "automerge": true,
       "platformAutomerge": true,
       "minimumReleaseAge": "3 days",
-      "schedule": ["after 9am and before 5pm on Monday"],
+      "schedule": [
+        "after 9am and before 5pm on Monday"
+      ],
       "groupName": "GitHub Actions upgrade",
-      "addLabels": ["dependencies"]
+      "addLabels": [
+        "dependencies"
+      ]
     }
   ]
 }

@@ -4,8 +4,13 @@ use std::{char, str};
 
 use crate::{Error, Result};
 
+use super::RegexLiteral;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
+    // Token indicating the end of the token stream
+    Start,
+
     // Token indicating the end of the token stream
     End,
 
@@ -60,6 +65,7 @@ pub enum TokenKind {
     Bool(bool),
     Str(String),
     Number(f64),
+    Regex(RegexLiteral),
 
     // Identifiers
     Name(String),
@@ -70,6 +76,7 @@ impl std::fmt::Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use TokenKind::*;
         match self {
+            Start => write!(f, "(start)"),
             End => write!(f, "(end)"),
             Whitespace => write!(f, "(whitespace)"),
             Comment => write!(f, "(comment"),
@@ -112,10 +119,36 @@ impl std::fmt::Display for TokenKind {
             Null => write!(f, "null"),
             Bool(v) => write!(f, "{}", v),
             Str(v) => write!(f, "\"{}\"", v),
+            Regex(v) => write!(f, "/{}/", v.as_pattern()),
             Number(v) => write!(f, "{}", v),
             Name(v) => write!(f, "{}", v),
             Var(v) => write!(f, "${}", v),
         }
+    }
+}
+
+impl TokenKind {
+    /// True if a forward slash following this token should be interpreted as the start of a regular expression literal.
+    fn can_precede_regex(&self) -> bool {
+        use TokenKind::*;
+        matches!(
+            self,
+            Start
+                | Apply
+                | LeftBrace
+                | LeftParen
+                | LeftBracket
+                | Comma
+                | Bind
+                | And
+                | Or
+                | Equal
+                | NotEqual
+                | LeftAngleBracket
+                | RightAngleBracket
+                | LessEqual
+                | GreaterEqual
+        )
     }
 }
 
@@ -132,6 +165,7 @@ pub struct Token {
 pub struct Tokenizer<'a> {
     input: &'a str,
     chars: Chars<'a>,
+    previous_token_kind: TokenKind,
 
     /// Internal buffer used for building strings
     buffer: Vec<char>,
@@ -206,6 +240,7 @@ impl<'a> Tokenizer<'a> {
         Self {
             input,
             chars: input.chars(),
+            previous_token_kind: TokenKind::Start,
             buffer: Vec::with_capacity(32),
             byte_index: 0,
             char_index: 0,
@@ -287,7 +322,6 @@ impl<'a> Tokenizer<'a> {
                 }
 
                 // Comments, forward-slashes or regexp
-                // TODO: Regexp
                 '/' => match self.peek() {
                     '*' => {
                         // Skip the *
@@ -312,6 +346,72 @@ impl<'a> Tokenizer<'a> {
                         }
 
                         Comment
+                    }
+                    _ if self.previous_token_kind.can_precede_regex() => {
+                        // Attempt to parse as regex
+                        let mut buffer = String::new();
+                        let mut is_escape = false;
+
+                        // Parse the regex pattern between slashes
+                        loop {
+                            match self.peek() {
+                                '\\' => {
+                                    self.bump();
+                                    is_escape = true;
+                                    buffer.push('\\');
+                                }
+                                '/' if !is_escape => {
+                                    self.bump();
+                                    break;
+                                }
+                                c => {
+                                    if self.eof() {
+                                        return Err(Error::S0302UnterminatedRegex(
+                                            self.start_char_index,
+                                        ));
+                                    }
+                                    self.bump();
+                                    buffer.push(c);
+                                    is_escape = false;
+                                }
+                            }
+                        }
+
+                        // Check for an empty regex pattern
+                        if buffer.is_empty() {
+                            return Err(Error::S0301EmptyRegex(self.start_char_index));
+                        }
+
+                        // Parse regex flags
+                        let mut multi_line = false;
+                        let mut case_insensitive = false;
+                        loop {
+                            match self.peek() {
+                                'i' if !case_insensitive => {
+                                    case_insensitive = true;
+                                    self.bump();
+                                }
+                                'm' if !multi_line => {
+                                    multi_line = true;
+                                    self.bump();
+                                }
+                                c if c.is_alphanumeric() => {
+                                    return Err(Error::S0303InvalidRegex(
+                                        self.start_char_index,
+                                        "Invalid regex flags".to_string(),
+                                    ));
+                                }
+                                _ => break,
+                            }
+                        }
+
+                        // Build the regex with the specified flags
+                        let regex_literal =
+                            RegexLiteral::new(&buffer, case_insensitive, multi_line).map_err(
+                                |e| Error::S0303InvalidRegex(self.start_char_index, e.to_string()),
+                            )?;
+
+                        Regex(regex_literal)
                     }
                     _ => ForwardSlash,
                 },
@@ -546,6 +646,8 @@ impl<'a> Tokenizer<'a> {
             }
         };
 
+        self.previous_token_kind = kind.clone();
+
         let token = Token {
             kind,
             char_index: self.start_char_index,
@@ -603,6 +705,24 @@ impl<'a> Tokenizer<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn collect_tokens(t: Tokenizer) -> Result<Vec<Token>> {
+        let mut tokens = Vec::new();
+        let mut t = t;
+        loop {
+            match t.next_token() {
+                Ok(token) if token.kind == TokenKind::End => {
+                    tokens.push(token);
+                    break;
+                }
+                Ok(token) => {
+                    tokens.push(token);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(tokens)
+    }
 
     #[test]
     fn comment() {
@@ -733,6 +853,106 @@ mod tests {
             TokenKind::Bool(false)
         ));
         assert!(matches!(t.next_token().unwrap().kind, TokenKind::Null));
+    }
+
+    #[test]
+    fn regex() {
+        for expr in [
+            "/[0-9]+/",
+            r#"$matches("100", /[0-9]+/)"#,
+            "path.to.object[stringProperty ~> /[0-9]+/",
+            "$matcher := /[0-9]+/",
+            "$m = /[0-9]+/",
+            "$m != /[0-9]+/",
+            "$m < /[0-9]+/",
+            "$m <= /[0-9]+/",
+            "$m > /[0-9]+/",
+            "$m >= /[0-9]+/",
+            "false or /[0-9]+/",
+            "false and /[0-9]+/",
+        ] {
+            let tokens = collect_tokens(Tokenizer::new(expr)).unwrap();
+
+            assert!(
+                tokens
+                    .iter()
+                    .any(|t| matches!(&t.kind, TokenKind::Regex(s) if s.as_pattern() == "[0-9]+")),
+                "Should contain the expected regex token: {}",
+                expr
+            );
+
+            assert!(
+                !tokens
+                    .iter()
+                    .any(|t| matches!(&t.kind, TokenKind::ForwardSlash)),
+                "Should not contain a forward slash token: {}",
+                expr
+            );
+        }
+    }
+
+    #[test]
+    fn regex_with_flags() {
+        // Case-insensitive flag test with basic pattern
+        let kind = Tokenizer::new("/^[a-z]+$/i").next_token().unwrap().kind;
+        if let TokenKind::Regex(r) = kind {
+            // There's not a function on the `regress::Regex` to check its flags directly.
+            assert!(r.is_match("ABC"));
+            assert!(!r.is_match("\nABC\n"));
+        } else {
+            panic!("Expected regex token")
+        };
+
+        // Multiline flag test with simple pattern
+        let kind = Tokenizer::new("/^[a-z]+$/m").next_token().unwrap().kind;
+        if let TokenKind::Regex(r) = kind {
+            // There's not a function on the `regress::Regex` to check its flags directly.
+            assert!(!r.is_match("ABC"));
+            assert!(r.is_match("\nabc\n"));
+        } else {
+            panic!("Expected regex token")
+        };
+
+        // Case-insensitive and multiline flags together
+        let kind = Tokenizer::new("/^[a-z]+$/im").next_token().unwrap().kind;
+        if let TokenKind::Regex(r) = kind {
+            // There's not a function on the `regress::Regex` to check its flags directly.
+            assert!(r.is_match("ABC"));
+            assert!(r.is_match("\nABC\n"));
+        } else {
+            panic!("Expected regex token")
+        };
+    }
+
+    /// To verify we don't mistake a division operator for a regex
+    #[test]
+    fn division() {
+        for expr in [
+            "$foo(1/2)",
+            "$foo(1 / 2)",
+            "1/2",
+            "x/2",
+            "$bar / $baz",
+            "null / 2",
+            "true / false",
+        ] {
+            let tokens = collect_tokens(Tokenizer::new(expr)).unwrap();
+            assert!(
+                !tokens
+                    .iter()
+                    .any(|t| matches!(&t.kind, TokenKind::Regex(_))),
+                "Should not contain a regex: {}",
+                expr
+            );
+
+            assert!(
+                tokens
+                    .iter()
+                    .any(|t| matches!(&t.kind, TokenKind::ForwardSlash)),
+                "Should contain a forward slash token: {}",
+                expr
+            );
+        }
     }
 
     #[test]

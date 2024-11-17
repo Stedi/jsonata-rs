@@ -36,6 +36,7 @@ impl Symbol for Token {
             TokenKind::Bool(ref v) => Ok(Ast::new(AstKind::Bool(*v), self.char_index)),
             TokenKind::Str(ref v) => Ok(Ast::new(AstKind::String(v.clone()), self.char_index)),
             TokenKind::Number(v) => Ok(Ast::new(AstKind::Number(v), self.char_index)),
+            TokenKind::Regex(ref v) => Ok(Ast::new(AstKind::Regex(v.clone()), self.char_index)),
             TokenKind::Name(ref v) => Ok(Ast::new(AstKind::Name(v.clone()), self.char_index)),
             TokenKind::Var(ref v) => Ok(Ast::new(AstKind::Var(v.clone()), self.char_index)),
             TokenKind::And => Ok(Ast::new(
