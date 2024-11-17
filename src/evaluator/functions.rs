@@ -2,7 +2,6 @@ use base64::Engine;
 use chrono::{TimeZone, Utc};
 use hashbrown::{DefaultHashBuilder, HashMap};
 use rand::Rng;
-use regress::Regex;
 use serde_json::Value as JsonValue;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
@@ -1837,26 +1836,18 @@ pub fn fn_eval<'a>(
     let expr = args.first().copied().unwrap_or_else(Value::undefined);
 
     if expr.is_null() {
-        return Ok(Value::null(context.arena));
-    } else if expr.is_undefined() {
-        return Ok(Value::undefined());
-    }
-
-    if !expr.is_string() {
-        return Ok(Value::undefined());
-    }
-
-    let expr_str = expr.as_str();
-    if expr_str.is_empty() {
-        return Ok(Value::null(context.arena));
-    }
-
-    let override_context = args.get(1).copied().unwrap_or(context.input);
-
-    // Pre-process the expression string to handle JSONata expressions inside JSON
-    match preprocess_and_eval_jsonata(&context, &expr_str, override_context) {
-        Ok(parsed_json) => Ok(parsed_json),
-        Err(_) => Ok(Value::undefined()),
+        Ok(Value::null(context.arena))
+    } else if expr.is_undefined() || !expr.is_string() {
+        Ok(Value::undefined())
+    } else {
+        let expr_str = expr.as_str();
+        if expr_str.is_empty() {
+            Ok(Value::null(context.arena))
+        } else {
+            let override_context = args.get(1).copied().unwrap_or(context.input);
+            preprocess_and_eval_jsonata(&context, &expr_str, override_context)
+                .or_else(|_| Ok(Value::undefined()))
+        }
     }
 }
 
@@ -1872,7 +1863,7 @@ fn preprocess_and_eval_jsonata<'a>(
     match serde_json::from_str::<JsonValue>(&preprocessed_str) {
         Ok(parsed_json) => {
             // Traverse and evaluate JSONata expressions inside the parsed JSON
-            traverse_and_eval_json(&context, &parsed_json, override_context)
+            traverse_and_eval_json(context, &parsed_json, override_context)
         }
         Err(_) => {
             // If JSON parsing fails, treat it as a JSONata expression
@@ -1895,53 +1886,35 @@ fn preprocess_jsonata_expressions<'a>(
     let mut result_str = String::new();
     let mut last_end = 0;
 
-    // Use `find_iter` to locate all matches
     for m in re.find_iter(expr_str) {
-        // Get the matched text
         let match_str = &expr_str[m.start()..m.end()];
 
-        // Extract the capture group by slicing the match string
-        // `re` is compiled with the pattern `\d+` in the parentheses
         let group_start = match_str
             .find('(')
-            .ok_or_else(|| Error::S0302UnterminatedRegex(context.char_index))?
-            + 1; // Start of the argument
+            .ok_or(Error::S0302UnterminatedRegex(context.char_index))?
+            + 1;
         let group_end = match_str
             .find(')')
-            .ok_or_else(|| Error::S0302UnterminatedRegex(context.char_index))?;
-        let arg = &match_str[group_start..group_end]; // e.g., `2`
+            .ok_or(Error::S0302UnterminatedRegex(context.char_index))?;
+        let arg = &match_str[group_start..group_end];
 
-        // Construct the expression
         let expression = format!("$string({})", arg);
 
-        // Evaluate the JSONata expression
         let replacement =
             match evaluate_jsonata_expression(context.clone(), &expression, &[override_context]) {
                 Some(Value::String(s)) => format!("\"{}\"", s),
                 Some(Value::Number(n)) => n.to_string(),
                 Some(Value::Bool(b)) => b.to_string(),
                 Some(Value::Null) => "null".to_string(),
-                Some(_) => "null".to_string(), // Fallback for unsupported types
-                None => {
-                    eprintln!(
-                        "Warning: Failed to evaluate JSONata expression `{}`",
-                        match_str
-                    );
-                    "null".to_string()
-                }
+                _ => "null".to_string(),
             };
 
-        // Append the portion before the match and the replacement
         result_str.push_str(&expr_str[last_end..m.start()]);
         result_str.push_str(&replacement);
-
-        // Update the end of the last match
         last_end = m.end();
     }
 
-    // Append the remainder of the string
     result_str.push_str(&expr_str[last_end..]);
-
     Ok(result_str)
 }
 
@@ -1963,12 +1936,9 @@ fn traverse_and_eval_json<'a>(
             }
         }
         JsonValue::String(s) => {
-            // Check if the string is a JSONata expression (starts with '$')
             if s.starts_with('$') {
-                match evaluate_jsonata_expression(context.clone(), s, &[override_context]) {
-                    Some(result) => Ok(result),
-                    None => Ok(context.arena.alloc(Value::Undefined)),
-                }
+                evaluate_jsonata_expression(context.clone(), s, &[override_context])
+                    .ok_or_else(|| Error::D3137Error("JSONata expression failed".to_string()))
             } else {
                 Ok(context
                     .arena
@@ -1979,28 +1949,14 @@ fn traverse_and_eval_json<'a>(
             }
         }
         JsonValue::Array(arr) => {
-            // Traverse each element of the array
-            let array_values: BumpVec<'a, &'a Value<'a>> = arr
+            let array_values: Result<BumpVec<'a, &'a Value<'a>>> = arr
                 .iter()
-                .map(|v| {
-                    match v {
-                        JsonValue::String(s) if s.starts_with('$') => {
-                            // Evaluate JSONata expressions in the array
-                            evaluate_jsonata_expression(context.clone(), s, &[override_context])
-                                .unwrap_or(context.arena.alloc(Value::Undefined))
-                        }
-                        _ => {
-                            // Traverse the other elements normally
-                            traverse_and_eval_json(context, v, override_context)
-                                .unwrap_or(context.arena.alloc(Value::Undefined))
-                        }
-                    }
-                })
+                .map(|v| traverse_and_eval_json(context, v, override_context))
                 .collect_in(context.arena);
 
             Ok(context
                 .arena
-                .alloc(Value::Array(array_values, ArrayFlags::empty())))
+                .alloc(Value::Array(array_values?, ArrayFlags::empty())))
         }
         JsonValue::Object(obj) => {
             let mut map = HashMap::with_capacity_in(obj.len(), context.arena);
@@ -2019,9 +1975,6 @@ fn evaluate_jsonata_expression<'a>(
     expr_str: &str,
     args: &[&'a Value<'a>],
 ) -> Option<&'a Value<'a>> {
-    println!("Evaluating JSONata expression: {}", expr_str);
-
-    // Check for expressions like "$string(2)"
     if expr_str.starts_with("$string(") && expr_str.ends_with(')') {
         let inner_expr = &expr_str[8..expr_str.len() - 1];
         if let Ok(num) = inner_expr.parse::<i64>() {
@@ -2032,18 +1985,11 @@ fn evaluate_jsonata_expression<'a>(
         }
     }
 
-    // Check for expressions like "$string(2)" or "$eval('Price * Quantity')"
     if expr_str.starts_with("$eval(") && expr_str.ends_with(')') {
-        let inner_expr = &expr_str[6..expr_str.len() - 1]; // Get the inner expression without $eval()
-        return evaluate_jsonata_expression(context.clone(), inner_expr, args); // Evaluate the inner expression
+        let inner_expr = &expr_str[6..expr_str.len() - 1];
+        return evaluate_jsonata_expression(context.clone(), inner_expr, args);
     }
 
-    // Handle the expression dynamically, allowing object field evaluation
-    if expr_str.contains("{") && expr_str.contains("}") {
-        return evaluate_jsonata_object(context, expr_str, args.first().unwrap_or(&&Value::Null));
-    }
-
-    // Split the expression into LHS and RHS parts
     let parts: Vec<&str> = expr_str.split("~>").map(str::trim).collect();
     if parts.is_empty() {
         return None;
@@ -2052,92 +1998,24 @@ fn evaluate_jsonata_expression<'a>(
     let lhs_expr = parts[0];
     let root = args.first()?;
 
-    // Traverse the JSON using the dynamic path from lhs_expr
+    // Traverse and collect values for the left-hand side (LHS) expression
     let lhs_value = traverse_and_collect_values(&context, root, lhs_expr);
 
     let rhs_expr = parts.get(1).unwrap_or(&"");
 
     match *rhs_expr {
-        "$string()" => fn_string(context, &[lhs_value]).ok(),
         "$sum()" => {
-            // Call fn_sum to sum the collected values
+            // Implement `$sum()` to sum all collected values
             fn_sum(context, &[lhs_value]).ok()
+        }
+        "$string()" => {
+            // Convert the collected values to a string
+            fn_string(context, &[lhs_value]).ok()
         }
         _ => None,
     }
 }
 
-fn evaluate_jsonata_object<'a>(
-    context: FunctionContext<'a, '_>,
-    object_expr: &str,
-    item_context: &'a Value<'a>,
-) -> Option<&'a Value<'a>> {
-    let mut object_map = HashMap::new_in(context.arena);
-
-    // Parse the object expression like "{ 'Name': `Product Name`, 'Total': $eval('Price * Quantity') }"
-    let object_def = parse_object_expression(object_expr);
-
-    // Dynamically evaluate each field in the object
-    for (field, expr) in object_def {
-        // Check if the expression is an evaluation ($eval)
-        if expr.starts_with("$eval(") && expr.ends_with(')') {
-            // Dynamically evaluate the expression
-            let inner_expr = &expr[6..expr.len() - 1]; // Strip $eval(...) to get the inner expression
-            if let Some(evaluated_value) =
-                evaluate_jsonata_expression(context.clone(), inner_expr, &[item_context])
-            {
-                object_map.insert(
-                    bumpalo::collections::String::from_str_in(&field, context.arena),
-                    evaluated_value, // Allocate the evaluated value directly
-                );
-            }
-        } else {
-            // For static values like `Product Name`
-            if let Some(evaluated_value) =
-                evaluate_jsonata_expression(context.clone(), &expr, &[item_context])
-            {
-                object_map.insert(
-                    bumpalo::collections::String::from_str_in(&field, context.arena),
-                    evaluated_value, // Allocate the evaluated value directly
-                );
-            }
-        }
-    }
-
-    Some(context.arena.alloc(Value::Object(object_map)))
-}
-
-// Helper function to parse object expressions
-fn parse_object_expression(object_expr: &str) -> Vec<(String, String)> {
-    let mut result = Vec::new();
-
-    let regex = Regex::new(r"'(\w+)':\s*(?:`([^`]+)`|\$eval\('([^']+)'\))").unwrap();
-
-    for m in regex.find_iter(object_expr) {
-        let match_str = &object_expr[m.start()..m.end()];
-
-        // Parse the capture groups manually
-        let field_start = match_str.find('\'').unwrap() + 1;
-        let field_end = match_str[field_start..].find('\'').unwrap() + field_start;
-        let field = &match_str[field_start..field_end]; // Extracted field name
-
-        if let Some(expr_start) = match_str.find('`') {
-            // Static value (e.g., `Product Name`)
-            let expr_end = match_str[expr_start + 1..].find('`').unwrap() + expr_start + 1;
-            let expr = &match_str[expr_start + 1..expr_end];
-            result.push((field.to_string(), expr.to_string()));
-        } else if let Some(eval_start) = match_str.find("$eval('") {
-            // Evaluated value (e.g., $eval('Price * Quantity'))
-            let eval_end = match_str[eval_start + 7..].find("')").unwrap() + eval_start + 7;
-            let eval_expr = &match_str[eval_start + 7..eval_end];
-            result.push((field.to_string(), format!("$eval({})", eval_expr)));
-        }
-    }
-
-    result
-}
-
-// Recursive function to traverse and collect values based on the dynamic path
 fn traverse_and_collect_values<'a>(
     context: &FunctionContext<'a, '_>,
     value: &'a Value<'a>,
@@ -2145,28 +2023,22 @@ fn traverse_and_collect_values<'a>(
 ) -> &'a Value<'a> {
     let mut extracted_values = BumpVec::new_in(context.arena);
 
-    // Recursively traverse the JSON and collect values matching the path
     traverse_recursive(
-        context,
         value,
         &path.split('.').collect::<Vec<&str>>(),
         &mut extracted_values,
     );
 
-    // Return the extracted values as an array
     context
         .arena
         .alloc(Value::Array(extracted_values, ArrayFlags::empty()))
 }
 
-// Recursive helper function to traverse and collect values from arrays and objects
 fn traverse_recursive<'a>(
-    context: &FunctionContext<'a, '_>,
     current_value: &'a Value<'a>,
     path_parts: &[&str],
     extracted_values: &mut BumpVec<'a, &'a Value<'a>>,
 ) {
-    // Base case: If the path is empty, collect the current value
     if path_parts.is_empty() {
         extracted_values.push(current_value);
         return;
@@ -2177,15 +2049,13 @@ fn traverse_recursive<'a>(
 
     match current_value {
         Value::Object(obj) => {
-            // If it's an object, follow the key and continue
             if let Some(next_value) = obj.get(key) {
-                traverse_recursive(context, next_value, remaining_path, extracted_values);
+                traverse_recursive(next_value, remaining_path, extracted_values);
             }
         }
         Value::Array(arr, _) => {
-            // If it's an array, iterate through each element and continue
             for item in arr.iter() {
-                traverse_recursive(context, item, path_parts, extracted_values);
+                traverse_recursive(item, path_parts, extracted_values);
             }
         }
         _ => {}
