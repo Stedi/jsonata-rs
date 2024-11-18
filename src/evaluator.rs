@@ -1192,7 +1192,7 @@ impl<'a> Evaluator<'a> {
             evaluated_args.push(arg);
         }
 
-        let mut result = self.apply_function(
+        let result = self.apply_function(
             proc.char_index,
             input,
             evaluated_proc,
@@ -1200,6 +1200,18 @@ impl<'a> Evaluator<'a> {
             frame,
         )?;
 
+        let result = self.trampoline_evaluate_value(result, input, frame)?;
+
+        Ok(result)
+    }
+
+    /// Iteratively evaluate a function until a non-function value is returned.
+    fn trampoline_evaluate_value(
+        &self,
+        mut result: &'a Value<'a>,
+        input: &'a Value<'a>,
+        frame: &Frame<'a>,
+    ) -> Result<&'a Value<'a>> {
         // Trampoline loop for tail-call optimization
         // TODO: This loop needs help
         while let Value::Lambda {

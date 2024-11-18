@@ -2,6 +2,7 @@ use base64::Engine;
 use chrono::{TimeZone, Utc};
 use hashbrown::{DefaultHashBuilder, HashMap};
 use rand::Rng;
+use regress::{Range, Regex};
 use serde_json::Value as JsonValue;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
@@ -97,6 +98,11 @@ impl<'a, 'e> FunctionContext<'a, 'e> {
     ) -> Result<&'a Value<'a>> {
         self.evaluator
             .apply_function(self.char_index, self.input, proc, args, &self.frame)
+    }
+
+    pub fn trampoline_evaluate_value(&self, value: &'a Value<'a>) -> Result<&'a Value<'a>> {
+        self.evaluator
+            .trampoline_evaluate_value(value, self.input, &self.frame)
     }
 }
 
@@ -225,7 +231,8 @@ pub fn fn_map<'a>(
             args.push(arr);
         }
 
-        let mapped = context.evaluate_function(func, &args)?;
+        let mapped = context.trampoline_evaluate_value(context.evaluate_function(func, &args)?)?;
+
         if !mapped.is_undefined() {
             result.push(mapped);
         }
@@ -625,12 +632,29 @@ pub fn fn_contains<'a>(
     }
 
     assert_arg!(str_value.is_string(), context, 1);
-    assert_arg!(token_value.is_string(), context, 2);
 
     let str_value = str_value.as_str();
-    let token_value = token_value.as_str();
 
-    Ok(Value::bool(str_value.contains(&token_value.to_string())))
+    // Check if token_value is a regex or string
+    let contains_result = match token_value {
+        Value::Regex(ref regex_literal) => {
+            let regex = regex_literal.get_regex();
+            regex.find_iter(&str_value).next().is_some()
+        }
+        Value::String(_) => {
+            let token_value = token_value.as_str();
+            str_value.contains(&token_value.to_string())
+        }
+        _ => {
+            return Err(Error::T0410ArgumentNotValid(
+                context.char_index,
+                2,
+                context.name.to_string(),
+            ));
+        }
+    };
+
+    Ok(Value::bool(contains_result))
 }
 
 pub fn fn_replace<'a>(
@@ -651,12 +675,8 @@ pub fn fn_replace<'a>(
     }
 
     assert_arg!(str_value.is_string(), context, 1);
-    assert_arg!(pattern_value.is_string(), context, 2);
-    assert_arg!(replacement_value.is_string(), context, 3);
 
     let str_value = str_value.as_str();
-    let pattern_value = pattern_value.as_str();
-    let replacement_value = replacement_value.as_str();
     let limit_value = if limit_value.is_undefined() {
         None
     } else {
@@ -664,20 +684,211 @@ pub fn fn_replace<'a>(
         if limit_value.as_isize().is_negative() {
             return Err(Error::D3011NegativeLimit(context.char_index));
         }
-        Some(limit_value.as_isize())
+        Some(limit_value.as_isize() as usize)
     };
 
-    let replaced_string = if let Some(limit) = limit_value {
-        str_value.replacen(
-            &pattern_value.to_string(),
-            &replacement_value,
-            limit as usize,
-        )
-    } else {
-        str_value.replace(&pattern_value.to_string(), &replacement_value)
+    // Check if pattern_value is a Regex or String and handle appropriately
+    let regex = match pattern_value {
+        Value::Regex(ref regex_literal) => regex_literal.get_regex(),
+        Value::String(ref pattern_str) => {
+            assert_arg!(replacement_value.is_string(), context, 3);
+            let replacement_str = replacement_value.as_str();
+
+            let replaced_string = if let Some(limit) = limit_value {
+                str_value.replacen(&pattern_str.to_string(), &replacement_str, limit)
+            } else {
+                str_value.replace(&pattern_str.to_string(), &replacement_str)
+            };
+
+            return Ok(Value::string(context.arena, &replaced_string));
+        }
+        _ => bad_arg!(context, 2),
     };
 
-    Ok(Value::string(context.arena, &replaced_string))
+    let mut result = String::new();
+    let mut last_end = 0;
+
+    for (replacements, m) in regex.find_iter(&str_value).enumerate() {
+        if m.range().is_empty() {
+            return Err(Error::D1004ZeroLengthMatch(context.char_index));
+        }
+
+        if let Some(limit) = limit_value {
+            if replacements >= limit {
+                break;
+            }
+        }
+
+        result.push_str(&str_value[last_end..m.start()]);
+
+        let match_str = &str_value[m.start()..m.end()];
+
+        // Process replacement based on the replacement_value type
+        let replacement_text = match replacement_value {
+            Value::NativeFn { func, .. } => {
+                let match_list = evaluate_match(context.arena, regex, match_str, None);
+
+                let func_result = func(context.clone(), &[match_list])?;
+
+                if let Value::String(ref s) = func_result {
+                    s.as_str().to_string()
+                } else {
+                    return Err(Error::D3012InvalidReplacementType(context.char_index));
+                }
+            }
+
+            func @ Value::Lambda { .. } => {
+                let match_list = evaluate_match(context.arena, regex, match_str, None);
+
+                let args = &[match_list];
+
+                let func_result =
+                    context.trampoline_evaluate_value(context.evaluate_function(func, args)?)?;
+
+                match func_result {
+                    Value::String(ref s) => s.as_str().to_string(),
+                    _ => return Err(Error::D3012InvalidReplacementType(context.char_index)),
+                }
+            }
+
+            Value::String(replacement_str) => {
+                evaluate_replacement_string(replacement_str.as_str(), &str_value, &m)
+            }
+
+            _ => bad_arg!(context, 3),
+        };
+
+        result.push_str(&replacement_text);
+        last_end = m.end();
+    }
+
+    result.push_str(&str_value[last_end..]);
+
+    Ok(Value::string(context.arena, &result))
+}
+
+/// Parse and evaluate a replacement string.
+///
+/// Parsing the string is context-dependent because of an odd jsonata behavior:
+/// - if $NM is a valid match group number, it is replaced with the match.
+/// - if $NM is not valid, it is replaced with the match for $M followed by a literal 'N'.
+///
+/// This is why the `Match` object is needed.
+///
+/// # Parameters
+/// - `replacement_str`: The replacement string to parse and evaluate.
+/// - `str_value`: The complete original string, the first argument to `$replace`.
+/// - `m`: The `Match` object for the current match which is being replaced.
+fn evaluate_replacement_string(
+    replacement_str: &str,
+    str_value: &str,
+    m: &regress::Match,
+) -> String {
+    #[derive(Debug)]
+    enum S {
+        Literal,
+        Dollar,
+        Group(u32),
+        End,
+    }
+
+    let mut state = S::Literal;
+    let mut acc = String::new();
+
+    let groups: Vec<Option<Range>> = m.groups().collect();
+    let mut chars = replacement_str.chars();
+
+    loop {
+        let c = chars.next();
+        match (&state, c) {
+            (S::Literal, Some('$')) => {
+                state = S::Dollar;
+            }
+            (S::Literal, Some(c)) => {
+                acc.push(c);
+            }
+            (S::Dollar, Some('$')) => {
+                acc.push('$');
+                state = S::Literal;
+            }
+
+            // Start parsing a group number
+            (S::Dollar, Some(c)) if c.is_numeric() => {
+                let digit = c
+                    .to_digit(10)
+                    .expect("numeric char failed to parse as digit");
+                state = S::Group(digit);
+            }
+
+            // `$` followed by something other than a group number
+            // (including end of string) is treated as a literal `$`
+            (S::Dollar, c) => {
+                acc.push('$');
+                c.inspect(|c| acc.push(*c));
+                state = S::Literal;
+            }
+
+            // Still parsing a group number
+            (S::Group(so_far), Some(c)) if c.is_numeric() => {
+                let digit = c
+                    .to_digit(10)
+                    .expect("numeric char failed to parse as digit");
+
+                let next = so_far * 10 + digit;
+                let groups_len = groups.len() as u32;
+
+                // A bizarre behavior of the jsonata reference implementation is that in $NM if NM is not a
+                // valid group number, it will use $N and treat M as a literal. This is not documented behavior and
+                // feels like a bug, but our test cases cover it in several ways.
+                if next >= groups_len {
+                    if let Some(match_range) = groups.get(*so_far as usize).and_then(|x| x.as_ref())
+                    {
+                        str_value
+                            .get(match_range.start..match_range.end)
+                            .inspect(|s| acc.push_str(s));
+                    } else {
+                        // The capture group did not match.
+                    }
+
+                    acc.push(c);
+
+                    state = S::Literal
+                } else {
+                    state = S::Group(next);
+                }
+            }
+
+            // The group number is complete, so we can now process it
+            (S::Group(index), c) => {
+                if let Some(match_range) = groups.get(*index as usize).and_then(|x| x.as_ref()) {
+                    str_value
+                        .get(match_range.start..match_range.end)
+                        .inspect(|s| acc.push_str(s));
+                } else {
+                    // The capture group did not match.
+                }
+
+                if let Some(c) = c {
+                    if c == '$' {
+                        state = S::Dollar;
+                    } else {
+                        acc.push(c);
+                        state = S::Literal;
+                    }
+                } else {
+                    state = S::End;
+                }
+            }
+            (S::Literal, None) => {
+                state = S::End;
+            }
+
+            (S::End, _) => {
+                break;
+            }
+        }
+    }
+    acc
 }
 
 pub fn fn_split<'a>(
@@ -693,36 +904,91 @@ pub fn fn_split<'a>(
     }
 
     assert_arg!(str_value.is_string(), context, 1);
-    assert_arg!(separator_value.is_string(), context, 2);
 
     let str_value = str_value.as_str();
-    let separator_value = separator_value.as_str();
-    let limit_value = if limit_value.is_undefined() {
+    let separator_is_regex = match separator_value {
+        Value::Regex(_) => true,
+        Value::String(_) => false,
+        _ => {
+            return Err(Error::T0410ArgumentNotValid(
+                context.char_index,
+                2,
+                context.name.to_string(),
+            ));
+        }
+    };
+
+    // Handle optional limit
+    let limit = if limit_value.is_undefined() {
         None
     } else {
-        assert_arg!(limit_value.is_number(), context, 4);
-        if limit_value.as_isize().is_negative() {
+        assert_arg!(limit_value.is_number(), context, 3);
+        if limit_value.as_f64() < 0.0 {
             return Err(Error::D3020NegativeLimit(context.char_index));
         }
-        Some(limit_value.as_isize())
+        Some(limit_value.as_f64() as usize)
     };
 
-    let substrings: Vec<&str> = if let Some(limit) = limit_value {
-        str_value
-            .split(&separator_value.to_string())
-            .take(limit as usize)
-            .collect()
-    } else {
-        str_value.split(&separator_value.to_string()).collect()
-    };
+    let substrings: Vec<String> = if separator_is_regex {
+        // Regex-based split using find_iter to find matches
+        let regex = match separator_value {
+            Value::Regex(ref regex_literal) => regex_literal.get_regex(),
+            _ => unreachable!(),
+        };
 
-    let substrings_count = substrings.len();
+        let mut results = Vec::new();
+        let mut last_end = 0;
+        let effective_limit = limit.unwrap_or(usize::MAX);
 
-    let result = Value::array_with_capacity(context.arena, substrings_count, ArrayFlags::empty());
-    for (index, substring) in substrings.into_iter().enumerate() {
-        if substring.is_empty() && (index == 0 || index == substrings_count - 1) {
-            continue;
+        for m in regex.find_iter(&str_value) {
+            if results.len() >= effective_limit {
+                break;
+            }
+
+            if m.start() > last_end {
+                let substring = str_value[last_end..m.start()].to_string();
+                results.push(substring);
+            }
+
+            last_end = m.end();
         }
+
+        if results.len() < effective_limit {
+            let remaining = str_value[last_end..].to_string();
+            results.push(remaining);
+        }
+        results
+    } else {
+        // Convert separator_value to &str
+        let separator_str = separator_value.as_str().to_string();
+        let separator_str = separator_str.as_str();
+        if separator_str.is_empty() {
+            // Split into individual characters, collecting directly into a Vec<String>
+            if let Some(limit) = limit {
+                str_value
+                    .chars()
+                    .take(limit)
+                    .map(|c| c.to_string())
+                    .collect()
+            } else {
+                str_value.chars().map(|c| c.to_string()).collect()
+            }
+        } else if let Some(limit) = limit {
+            str_value
+                .split(separator_str)
+                .take(limit)
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            str_value
+                .split(separator_str)
+                .map(|s| s.to_string())
+                .collect()
+        }
+    };
+
+    let result = Value::array_with_capacity(context.arena, substrings.len(), ArrayFlags::empty());
+    for substring in &substrings {
         result.push(Value::string(context.arena, substring));
     }
     Ok(result)
@@ -1771,60 +2037,70 @@ pub fn fn_match<'a>(
         _ => return Err(Error::D3010EmptyPattern(context.char_index)),
     };
 
-    let limit = args
-        .get(2)
-        .and_then(|val| {
-            if val.is_number() {
-                Some(val.as_f64() as usize)
-            } else {
-                None
-            }
-        })
-        .unwrap_or(usize::MAX);
+    let limit = args.get(2).and_then(|val| {
+        if val.is_number() {
+            Some(val.as_f64() as usize)
+        } else {
+            None
+        }
+    });
 
-    let key_match = BumpString::from_str_in("match", context.arena);
-    let key_index = BumpString::from_str_in("index", context.arena);
-    let key_groups = BumpString::from_str_in("groups", context.arena);
+    Ok(evaluate_match(
+        context.arena,
+        regex_literal.get_regex(),
+        &value_to_validate.as_str(),
+        limit,
+    ))
+}
+
+fn evaluate_match<'a>(
+    arena: &'a Bump,
+    regex: &Regex,
+    input_str: &str,
+    limit: Option<usize>,
+) -> &'a Value<'a> {
+    let limit = limit.unwrap_or(usize::MAX);
+
+    let key_match = BumpString::from_str_in("match", arena);
+    let key_index = BumpString::from_str_in("index", arena);
+    let key_groups = BumpString::from_str_in("groups", arena);
 
     let mut matches: bumpalo::collections::Vec<&Value<'a>> =
-        bumpalo::collections::Vec::new_in(context.arena);
+        bumpalo::collections::Vec::new_in(arena);
 
-    for (i, m) in regex_literal
-        .get_regex()
-        .find_iter(&value_to_validate.as_str())
-        .enumerate()
-    {
+    for (i, m) in regex.find_iter(input_str).enumerate() {
         if i >= limit {
             break;
         }
 
-        let matched_text = &value_to_validate.as_str()[m.start()..m.end()];
-        let match_str = context
-            .arena
-            .alloc(Value::string(context.arena, matched_text));
+        let matched_text = &input_str[m.start()..m.end()];
+        let match_str = arena.alloc(Value::string(arena, matched_text));
 
-        let index_val = context
-            .arena
-            .alloc(Value::number(context.arena, m.start() as f64));
+        let index_val = arena.alloc(Value::number(arena, i as f64));
 
-        let group_vec: bumpalo::collections::Vec<&Value<'a>> =
-            bumpalo::collections::Vec::new_in(context.arena);
-        let groups_val = context
-            .arena
-            .alloc(Value::Array(group_vec, ArrayFlags::empty()));
+        // Extract capture groups as values
+        let capture_groups = m
+            .groups()
+            .filter_map(|group| group.map(|range| &input_str[range.start..range.end]))
+            .map(|s| BumpString::from_str_in(s, arena))
+            .map(|s| &*arena.alloc(Value::String(s)))
+            // Skip the first group which is the entire match
+            .skip(1);
+
+        let group_vec = BumpVec::from_iter_in(capture_groups, arena);
+
+        let groups_val = arena.alloc(Value::Array(group_vec, ArrayFlags::empty()));
 
         let mut match_obj: HashMap<BumpString, &Value<'a>, DefaultHashBuilder, &Bump> =
-            HashMap::with_capacity_and_hasher_in(3, DefaultHashBuilder::default(), context.arena);
+            HashMap::with_capacity_and_hasher_in(3, DefaultHashBuilder::default(), arena);
         match_obj.insert(key_match.clone(), match_str);
         match_obj.insert(key_index.clone(), index_val);
         match_obj.insert(key_groups.clone(), groups_val);
 
-        matches.push(context.arena.alloc(Value::Object(match_obj)));
+        matches.push(arena.alloc(Value::Object(match_obj)));
     }
 
-    Ok(context
-        .arena
-        .alloc(Value::Array(matches, ArrayFlags::empty())))
+    arena.alloc(Value::Array(matches, ArrayFlags::empty()))
 }
 
 pub fn fn_eval<'a>(
