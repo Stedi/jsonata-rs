@@ -117,17 +117,17 @@ fn test_case(resource: &str) {
                             );
                         } else {
                             eprintln!("RESULT: {}", result);
-                            assert_eq!(result, expected_result);
+                            assert_eq!(expected_result, result);
                         }
                     }
                     Err(error) => {
                         eprintln!("ERROR: {}", error);
-                        let code = if !case["error"].is_undefined() {
+                        let expected_code = if !case["error"].is_undefined() {
                             &case["error"]["code"]
                         } else {
                             &case["code"]
                         };
-                        assert_eq!(*code, error.code());
+                        assert_eq!(*expected_code, error.code());
                     }
                 }
             }

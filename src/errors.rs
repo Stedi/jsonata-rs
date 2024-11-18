@@ -33,11 +33,13 @@ pub enum Error {
     // Runtime errors
     D1001NumberOfOutRange(f64),
     D1002NegatingNonNumeric(usize, String),
+    D1004ZeroLengthMatch(usize),
     D1009MultipleKeys(usize, String),
     D2014RangeOutOfBounds(usize, isize),
     D3001StringNotFinite(usize),
     D3010EmptyPattern(usize),
     D3011NegativeLimit(usize),
+    D3012InvalidReplacementType(usize),
     D3020NegativeLimit(usize),
     D3030NonNumericCast(usize, String),
     D3050SecondArguement(String),
@@ -122,11 +124,13 @@ impl Error {
             // Runtime errors
             Error::D1001NumberOfOutRange(..) => "D1001",
             Error::D1002NegatingNonNumeric(..) => "D1002",
+            Error::D1004ZeroLengthMatch(..) => "D1004",
             Error::D1009MultipleKeys(..) => "D1009",
             Error::D2014RangeOutOfBounds(..) => "D2014",
             Error::D3001StringNotFinite(..) => "D3001",
             Error::D3010EmptyPattern(..) => "D3010",
             Error::D3011NegativeLimit(..) => "D3011",
+            Error::D3012InvalidReplacementType(..) => "D3012",
             Error::D3020NegativeLimit(..) => "D3020",
             Error::D3030NonNumericCast(..) => "D3030",
             Error::D3050SecondArguement(..) => "D3050",
@@ -228,6 +232,8 @@ impl fmt::Display for Error {
             D1001NumberOfOutRange(ref n) => write!(f, "Number out of range: {}", n),
             D1002NegatingNonNumeric(ref p, ref v) =>
                 write!(f, "{}: Cannot negate a non-numeric value `{}`", p, v),
+            D1004ZeroLengthMatch(ref p) =>
+                write!(f, "{}: Regular expression matches zero length string", p),
             D1009MultipleKeys(ref p, ref k) =>
                 write!(f, "{}: Multiple key definitions evaluate to same key: {}", p, k),
             D2014RangeOutOfBounds(ref p, ref s) =>
@@ -238,6 +244,7 @@ impl fmt::Display for Error {
                 write!(f, "{}: Second argument of replace function cannot be an empty string", p),
             D3011NegativeLimit(ref p) =>
                 write!(f, "{}: Fourth argument of replace function must evaluate to a positive number", p),
+            D3012InvalidReplacementType(ref p) => write!(f, "{}: Attempted to replace a matched string with a non-string value", p),
             D3020NegativeLimit(ref p) =>
                 write!(f, "{}: Third argument of split function must evaluate to a positive number", p),
             D3030NonNumericCast(ref p, ref n) =>
