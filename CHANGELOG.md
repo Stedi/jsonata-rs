@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.3.0](https://github.com/Stedi/jsonata-rs/compare/v0.2.0...v0.3.0) - 2024-11-18
+
+### Added
+
+- Add support for regex expressions ([#125](https://github.com/Stedi/jsonata-rs/pull/125))
+- Handle regex pattern for Value type ([#118](https://github.com/Stedi/jsonata-rs/pull/118))
+
+### Fixed
+
+- $millis should return a number ([#142](https://github.com/Stedi/jsonata-rs/pull/142))
+- some type-errors in function calls caused panics ([#141](https://github.com/Stedi/jsonata-rs/pull/141))
+
+### Other
+
+- bump up actions workflow in osv scanner ([#138](https://github.com/Stedi/jsonata-rs/pull/138))
+- pin dependency fix for rust toolchain ([#137](https://github.com/Stedi/jsonata-rs/pull/137))
+- *(deps)* pin dependencies ([#136](https://github.com/Stedi/jsonata-rs/pull/136))
+- use Renovate best practices ([#135](https://github.com/Stedi/jsonata-rs/pull/135))
+- *(deps)* update taiki-e/install-action digest to 9c04113 ([#128](https://github.com/Stedi/jsonata-rs/pull/128))
+- add permissions definitions at workflow and jobs level ([#129](https://github.com/Stedi/jsonata-rs/pull/129))
+- Revert "chore: exempt CHANGELOG from codeowners ([#121](https://github.com/Stedi/jsonata-rs/pull/121))" ([#124](https://github.com/Stedi/jsonata-rs/pull/124))
+- Update scorecard.yml ([#123](https://github.com/Stedi/jsonata-rs/pull/123))
+- run tests within merge queue ([#122](https://github.com/Stedi/jsonata-rs/pull/122))
+- exempt CHANGELOG from codeowners ([#121](https://github.com/Stedi/jsonata-rs/pull/121))
+- *(deps)* update github actions upgrade ([#119](https://github.com/Stedi/jsonata-rs/pull/119))
+
 ## [0.2.0](https://github.com/Stedi/jsonata-rs/compare/v0.1.10...v0.2.0) - 2024-11-01
 
 ### Added
