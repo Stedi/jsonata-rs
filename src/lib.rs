@@ -778,6 +778,15 @@ mod tests {
     }
 
     #[test]
+    fn evaluate_millis_returns_number() {
+        let arena = Bump::new();
+        let jsonata = JsonAta::new("$millis()", &arena).unwrap();
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        assert!(result.is_number());
+    }
+
+    #[test]
     fn test_from_millis_formats_date() {
         // Initialize the arena (memory pool) for JSONata
         let arena = Bump::new();
