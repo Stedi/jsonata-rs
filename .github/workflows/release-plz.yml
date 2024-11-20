@@ -30,11 +30,11 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1482605bfc5719782e1267fd0c0cc350fe7646b8 # stable
+        uses: dtolnay/rust-toolchain@315e265cd78dad1e1dcf3a5074f6d6c47029d5aa # stable
         with:
           toolchain: stable
       - name: Run release-plz release
-        uses: MarcoIeni/release-plz-action@301fd6d8c641b97f25b5ade37651a478a5faa7da # v0.5
+        uses: MarcoIeni/release-plz-action@f0fdffff1ff475195a1638e487cf93719e065a8e # v0.5
         with:
           command: release
         env:
@@ -66,11 +66,11 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1482605bfc5719782e1267fd0c0cc350fe7646b8 # stable
+        uses: dtolnay/rust-toolchain@315e265cd78dad1e1dcf3a5074f6d6c47029d5aa # stable
         with:
           toolchain: stable
       - name: Run release-plz PR task
-        uses: MarcoIeni/release-plz-action@301fd6d8c641b97f25b5ade37651a478a5faa7da # v0.5
+        uses: MarcoIeni/release-plz-action@f0fdffff1ff475195a1638e487cf93719e065a8e # v0.5
         with:
           command: release-pr
         env:
