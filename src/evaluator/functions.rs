@@ -2116,6 +2116,7 @@ pub fn fn_eval<'a>(
     } else if expr.is_undefined() || !expr.is_string() {
         Ok(Value::undefined())
     } else {
+        println!("else of eval");
         let expr_str = expr.as_str();
         if expr_str.is_empty() {
             Ok(Value::null(context.arena))
@@ -2132,22 +2133,15 @@ fn preprocess_and_eval_jsonata<'a>(
     expr_str: &str,
     override_context: &'a Value<'a>,
 ) -> Result<&'a Value<'a>> {
-    // Check if the input contains embedded JSONata expressions like $string(2)
     let preprocessed_str = preprocess_jsonata_expressions(context, expr_str, override_context)?;
 
-    // Now attempt to parse the preprocessed string as JSON
     match serde_json::from_str::<JsonValue>(&preprocessed_str) {
-        Ok(parsed_json) => {
-            // Traverse and evaluate JSONata expressions inside the parsed JSON
-            traverse_and_eval_json(context, &parsed_json, override_context)
-        }
-        Err(_) => {
-            // If JSON parsing fails, treat it as a JSONata expression
-            match evaluate_jsonata_expression(context.clone(), expr_str, &[override_context]) {
-                Some(result) => Ok(result),
-                None => Ok(Value::undefined()),
-            }
-        }
+        Ok(parsed_json) => traverse_and_eval_json(context, &parsed_json, override_context),
+        Err(_) => match evaluate_jsonata_expression(context.clone(), expr_str, &[override_context])
+        {
+            Some(result) => Ok(result),
+            None => Ok(Value::undefined()),
+        },
     }
 }
 
@@ -2165,13 +2159,8 @@ fn preprocess_jsonata_expressions<'a>(
     for m in re.find_iter(expr_str) {
         let match_str = &expr_str[m.start()..m.end()];
 
-        let group_start = match_str
-            .find('(')
-            .ok_or(Error::S0302UnterminatedRegex(context.char_index))?
-            + 1;
-        let group_end = match_str
-            .find(')')
-            .ok_or(Error::S0302UnterminatedRegex(context.char_index))?;
+        let group_start = match_str.find('(').unwrap() + 1;
+        let group_end = match_str.find(')').unwrap();
         let arg = &match_str[group_start..group_end];
 
         let expression = format!("$string({})", arg);
@@ -2263,7 +2252,7 @@ fn evaluate_jsonata_expression<'a>(
 
     if expr_str.starts_with("$eval(") && expr_str.ends_with(')') {
         let inner_expr = &expr_str[6..expr_str.len() - 1];
-        return evaluate_jsonata_expression(context.clone(), inner_expr, args);
+        return evaluate_math_expression(context, inner_expr, args);
     }
 
     let parts: Vec<&str> = expr_str.split("~>").map(str::trim).collect();
@@ -2274,28 +2263,114 @@ fn evaluate_jsonata_expression<'a>(
     let lhs_expr = parts[0];
     let root = args.first()?;
 
-    // Traverse and collect values for the left-hand side (LHS) expression
-    let lhs_value = traverse_and_collect_values(&context, root, lhs_expr);
+    let lhs_value = traverse_fn_expr(&context, root, lhs_expr);
 
     let rhs_expr = parts.get(1).unwrap_or(&"");
 
     match *rhs_expr {
-        "$sum()" => {
-            // Implement `$sum()` to sum all collected values
-            fn_sum(context, &[lhs_value]).ok()
-        }
-        "$string()" => {
-            // Convert the collected values to a string
-            fn_string(context, &[lhs_value]).ok()
-        }
-        _ => None,
+        "$sum()" => return fn_sum(context, &[lhs_value]).ok(),
+        "$string()" => return fn_string(context, &[lhs_value]).ok(),
+        _ => (),
     }
+
+    let root = args.first()?;
+    let data = traverse_and_collect_values(&context, root, expr_str);
+    println!("data: {:?}", data);
+    data
+}
+
+fn evaluate_math_expression<'a>(
+    context: FunctionContext<'a, '_>,
+    expr: &str,
+    args: &[&'a Value<'a>],
+) -> Option<&'a Value<'a>> {
+    let root = args.first()?;
+    let mut variables = std::collections::HashMap::new();
+
+    if let Value::Object(obj) = root {
+        for (key, val) in obj.iter() {
+            if let Value::Number(num) = val {
+                variables.insert(key.to_string(), *num);
+            }
+        }
+    }
+
+    let mut result: f64 = 0.0;
+    let mut operator: Option<char> = None;
+
+    for token in expr.split_whitespace() {
+        match token {
+            "+" | "-" | "*" | "/" => {
+                operator = Some(token.chars().next().unwrap());
+            }
+            _ => {
+                if let Some(value) = variables.get(token) {
+                    result = match operator {
+                        Some('+') => result + value,
+                        Some('-') => result - value,
+                        Some('*') => result * value,
+                        Some('/') => result / value,
+                        None => *value,
+                        _ => result,
+                    };
+                }
+            }
+        }
+    }
+
+    Some(context.arena.alloc(Value::Number(result)))
 }
 
 fn traverse_and_collect_values<'a>(
     context: &FunctionContext<'a, '_>,
     value: &'a Value<'a>,
-    path: &str, // JSON path like "Account.Order.Product.Quantity"
+    path: &str,
+) -> Option<&'a Value<'a>> {
+    // Split the path into components and evaluate
+    let mut result: Option<f64> = None;
+    let mut operator: Option<&str> = None;
+
+    for part in path.split_whitespace() {
+        match part {
+            "*" | "/" | "+" | "-" => {
+                operator = Some(part);
+            }
+            _ => {
+                // Collapsed `if let` for both fetch and number extraction
+                if let Some(Value::Number(num)) = fetch_key_value(value, part) {
+                    result = match (result, operator) {
+                        (Some(acc), Some(op)) => Some(match op {
+                            "*" => acc * num,
+                            "/" => acc / num,
+                            "+" => acc + num,
+                            "-" => acc - num,
+                            _ => acc,
+                        }),
+                        _ => Some(*num),
+                    };
+                }
+            }
+        }
+    }
+
+    if let Some(res) = result {
+        return Some(context.arena.alloc(Value::Number(res)));
+    }
+
+    Some(context.arena.alloc(Value::Undefined))
+}
+
+fn fetch_key_value<'a>(value: &'a Value<'a>, key: &str) -> Option<&'a Value<'a>> {
+    match value {
+        Value::Object(obj) => obj.get(key).copied(),
+        _ => None,
+    }
+}
+
+fn traverse_fn_expr<'a>(
+    context: &FunctionContext<'a, '_>,
+    value: &'a Value<'a>,
+    path: &str,
 ) -> &'a Value<'a> {
     let mut extracted_values = BumpVec::new_in(context.arena);
 

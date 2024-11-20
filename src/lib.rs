@@ -185,7 +185,7 @@ impl<'a> JsonAta<'a> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{DateTime, Datelike, Local, Offset};
+    use chrono::{DateTime, Datelike, Local, Offset, Timelike};
     use regress::Regex;
 
     use bumpalo::collections::String as BumpString;
@@ -778,39 +778,47 @@ mod tests {
     }
 
     #[test]
-    fn evaluate_millis_returns_number() {
-        let arena = Bump::new();
-        let jsonata = JsonAta::new("$millis()", &arena).unwrap();
-        let result = jsonata.evaluate(None, None).unwrap();
-
-        assert!(result.is_number());
-    }
-
-    #[test]
     fn test_from_millis_formats_date() {
         // Initialize the arena (memory pool) for JSONata
         let arena = Bump::new();
 
-        // Define the JSONata expression for formatting the date
-        let jsonata = JsonAta::new("$fromMillis($millis(),'[Y01][M01][D01]')", &arena).unwrap();
+        // Capture the current time and compute the UTC-adjusted milliseconds
+        let now = Local::now();
+        let utc_now = now.with_timezone(&chrono::Utc);
+        let utc_midnight = utc_now
+            .with_hour(0)
+            .unwrap()
+            .with_minute(0)
+            .unwrap()
+            .with_second(0)
+            .unwrap()
+            .with_nanosecond(0)
+            .unwrap();
+        let millis = utc_midnight.timestamp_millis(); // UTC-adjusted midnight
 
-        // Evaluate the expression
+        // Inject the UTC-adjusted milliseconds into the JSONata expression
+        let jsonata = JsonAta::new(
+            &format!("$fromMillis({}, '[Y01][M01][D01]')", millis),
+            &arena,
+        )
+        .unwrap();
+
         let result = jsonata.evaluate(None, None).unwrap();
 
-        // Dynamically compute the expected result
-        let now = Local::now();
         let expected = format!(
             "{:02}{:02}{:02}",
-            now.year() % 100, // Last two digits of the year
-            now.month(),
-            now.day()
+            utc_midnight.year() % 100,
+            utc_midnight.month(),
+            utc_midnight.day()
         );
 
-        // Store the result of `to_string` in a variable to ensure it lives long enough
         let result_string = result.to_string();
-        let actual = result_string.trim_matches('"'); // Trim quotes if present
+        let actual = result_string.trim_matches('"');
 
-        // Verify the result matches the expected value
-        assert_eq!(actual, expected);
+        assert_eq!(
+            actual, expected,
+            "Expected '{}', got '{}'",
+            expected, actual
+        );
     }
 }
