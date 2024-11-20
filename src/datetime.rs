@@ -62,68 +62,77 @@ pub fn format_custom_date(date: &DateTime<FixedOffset>, picture: &str) -> Result
 
 fn handle_pattern(pattern: &str, date: &DateTime<FixedOffset>) -> Result<String, Error> {
     match pattern {
+        // Year patterns
         "X0001" => Ok(date.iso_week().year().to_string()),
-        "D#1,2" => Ok(format!("{:02}", date.day())),
-        "M1,2" => Ok(format!("{:02}", date.month())),
+        "Y" | "Y0001" | "Y0001,2" => Ok(date.format("%Y").to_string()),
         "Y,2" => Ok(date.format("%y").to_string()),
-        "Y0001,2" | "Y0001" => Ok(date.format("%Y").to_string()),
+        "Y01" => Ok(date.format("%y").to_string()),
         "Y0001,2-2" | "Y##01,2-2" => handle_year_last_two_digits(date),
-        "Da" => Ok(map_day_to_letter(date.day())),
-        "MA" => Ok(map_month_to_letter(date.month())),
-        "W01" => Ok(date.format("%V").to_string()),
-        "Y" => Ok(date.format("%Y").to_string()),    // Year
-        "D#1" => Ok(date.format("%-d").to_string()), // Day without leading zero
-        "M#1" => Ok(date.format("%-m").to_string()), // Month without leading zero
-        "F1" => Ok(date.format("%u").to_string()),
         "Y9,999,*" => Ok(date.year().to_formatted_string(&Locale::en)),
-        "D1" => Ok(date.format("%-d").to_string()),
-        "d" => Ok(calculate_total_days_in_year(date)),
-        "D01" => Ok(date.format("%d").to_string()),
+        "YI" => Ok(to_roman_numerals(date.year())),
+        "Yi" => Ok(to_roman_numerals_lower(date.year())),
+        "Yw" => Ok(to_year_in_words(date.year())),
+
+        // Month patterns
+        "M01" => Ok(date.format("%m").to_string()),
+        "m01" => Ok(date.format("%M").to_string()),
+        "M1,2" => Ok(format!("{:02}", date.month())),
+        "M" | "M#1" => Ok(date.format("%-m").to_string()),
+        "MA" => Ok(map_month_to_letter(date.month())),
+        "MNn" => Ok(date.format("%B").to_string()),
+        "MNn,3-3" => Ok(date.format("%B").to_string()[..3].to_string()),
+        "MN" => Ok(date.format("%B").to_string().to_uppercase()),
+
+        // Day patterns
+        "D01" | "D#1,2" => Ok(date.format("%d").to_string()),
+        "D" | "D#1" | "D1" => Ok(date.format("%-d").to_string()),
+        "Da" => Ok(map_day_to_letter(date.day())),
         "Dwo" => Ok(format_day_in_words_with_ordinal(date.day())),
         "dwo" => Ok(format_day_in_words_with_ordinal(date.ordinal())),
+        "D1o" => Ok(format_day_with_ordinal(date.day())),
+        "d" => Ok(calculate_total_days_in_year(date)),
+
+        // Week patterns
+        "W01" => Ok(date.format("%V").to_string()),
         "W" => Ok(format!("{}", date.iso_week().week())),
         "w" => Ok(handle_week_of_month(date)),
-        "xNn" => Ok(handle_xnn(date)),
-        "M01" => Ok(date.format("%m").to_string()),
+
+        // Time patterns
         "H01" => Ok(date.format("%H").to_string()),
-        "h" => Ok(date.format("%-I").to_string()),
+        "h" | "h#1" => Ok(date.format("%-I").to_string()),
         "m" => Ok(date.format("%M").to_string()),
-        "s" => Ok(date.format("%S").to_string()),
+        "s" | "s01" => Ok(date.format("%S").to_string()),
         "f001" => Ok(date.format("%3f").to_string()),
+
+        // Timezone patterns
         "Z01:01t" | "Z01:01" | "Z0101t" => handle_timezone(date, pattern),
         "Z" => Ok(date.format("%:z").to_string()),
         "z" => Ok(format!("GMT{}", date.format("%:z"))),
         "Z0" => Ok(handle_trimmed_timezone(date)),
-        s if s.starts_with('Z') && s.chars().filter(|c| c.is_ascii_digit()).count() > 4 => {
-            // Handle specific case where more than four digits were used erroneously
-            Err(Error::D3134TooManyTzDigits(
-                "Invalid datetime picture string".to_string(),
-            ))
-        }
-        "m01" => Ok(date.format("%M").to_string()), // Minutes with leading zero
-        "s01" => Ok(date.format("%S").to_string()), // Seconds with leading zero
-        "F0" => Ok(date.format("%u").to_string()),  // ISO day of the week (1-7)
+        s if s.starts_with('Z') && s.chars().filter(|c| c.is_ascii_digit()).count() > 4 => Err(
+            Error::D3134TooManyTzDigits("Invalid datetime picture string".to_string()),
+        ),
+
+        // Day of the week patterns
+        "F0" | "F1" => Ok(date.format("%u").to_string()),
         "FNn" => Ok(date.format("%A").to_string()),
         "FNn,3-3" => Ok(date.format("%A").to_string()[..3].to_string()),
-        "h#1" => Ok(date.format("%-I").to_string()),
-        "P" => Ok(date.format("%p").to_string().to_lowercase()),
+        "F" => Ok(date.format("%A").to_string().to_lowercase()),
+
+        // Period patterns
+        "P" | "Pn" => Ok(date.format("%p").to_string().to_lowercase()),
         "PN" => Ok(date.format("%p").to_string()),
-        "Pn" => Ok(date.format("%p").to_string().to_lowercase()),
-        "YI" => Ok(to_roman_numerals(date.year())),
-        "Yi" => Ok(to_roman_numerals_lower(date.year())),
-        "D1o" => Ok(format_day_with_ordinal(date.day())),
-        "MNn" => Ok(date.format("%B").to_string()),
-        "MNn,3-3" => Ok(date.format("%B").to_string()[..3].to_string()),
-        "MN" => Ok(date.format("%B").to_string().to_uppercase()),
+
+        // ISO/Era patterns
+        "E" | "C" => Ok("ISO".to_string()),
+
+        // Custom patterns
+        "xNn" => Ok(handle_xnn(date)),
+
         "YN" => Err(Error::D3133PictureStringNameModifierError(
             "Invalid datetime picture string".to_string(),
         )),
-        "Yw" => Ok(to_year_in_words(date.year())),
-        "E" => Ok("ISO".to_string()),
-        "F" => Ok(date.format("%A").to_string().to_lowercase()),
-        "D" => Ok(date.format("%-d").to_string()),
-        "M" => Ok(date.format("%-m").to_string()),
-        "C" => Ok("ISO".to_string()),
+        // Fallback for unsupported patterns
         s => Err(Error::D3137Error(format!(
             "Unsupported datetime picture string: {s}"
         ))),
