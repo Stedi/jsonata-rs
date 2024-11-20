@@ -2116,7 +2116,6 @@ pub fn fn_eval<'a>(
     } else if expr.is_undefined() || !expr.is_string() {
         Ok(Value::undefined())
     } else {
-        println!("else of eval");
         let expr_str = expr.as_str();
         if expr_str.is_empty() {
             Ok(Value::null(context.arena))
@@ -2274,9 +2273,7 @@ fn evaluate_jsonata_expression<'a>(
     }
 
     let root = args.first()?;
-    let data = traverse_and_collect_values(&context, root, expr_str);
-    println!("data: {:?}", data);
-    data
+    traverse_and_collect_values(&context, root, expr_str)
 }
 
 fn evaluate_math_expression<'a>(
