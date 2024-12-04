@@ -38,6 +38,7 @@ impl<'a> Iterator for MemberIterator<'a> {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> DoubleEndedIterator for MemberIterator<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.back_done {
