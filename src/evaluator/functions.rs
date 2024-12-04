@@ -89,6 +89,7 @@ pub struct FunctionContext<'a, 'e> {
     pub arena: &'a Bump,
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a, 'e> FunctionContext<'a, 'e> {
     pub fn evaluate_function(
         &self,

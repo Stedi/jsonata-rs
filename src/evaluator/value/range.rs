@@ -58,6 +58,7 @@ impl<'a> Index<usize> for Range<'a> {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PartialEq<Range<'_>> for Range<'a> {
     fn eq(&self, other: &Range<'_>) -> bool {
         self.start == other.start && self.end == other.end
