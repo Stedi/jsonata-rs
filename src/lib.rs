@@ -184,7 +184,7 @@ impl<'a> JsonAta<'a> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{DateTime, Offset};
+    use chrono::{DateTime, Datelike, Local, Offset};
     use regress::Regex;
 
     use bumpalo::collections::String as BumpString;
@@ -783,5 +783,33 @@ mod tests {
         let result = jsonata.evaluate(None, None).unwrap();
 
         assert!(result.is_number());
+    }
+
+    #[test]
+    fn test_from_millis_formats_date() {
+        // Initialize the arena (memory pool) for JSONata
+        let arena = Bump::new();
+
+        // Define the JSONata expression for formatting the date
+        let jsonata = JsonAta::new("$fromMillis($millis(),'[Y01][M01][D01]')", &arena).unwrap();
+
+        // Evaluate the expression
+        let result = jsonata.evaluate(None, None).unwrap();
+
+        // Dynamically compute the expected result
+        let now = Local::now();
+        let expected = format!(
+            "{:02}{:02}{:02}",
+            now.year() % 100, // Last two digits of the year
+            now.month(),
+            now.day()
+        );
+
+        // Store the result of `to_string` in a variable to ensure it lives long enough
+        let result_string = result.to_string();
+        let actual = result_string.trim_matches('"'); // Trim quotes if present
+
+        // Verify the result matches the expected value
+        assert_eq!(actual, expected);
     }
 }
