@@ -32,7 +32,7 @@ jobs:
         with:
           toolchain: stable
           target: wasm32-wasi
-      - uses: taiki-e/install-action@c4bf614c2fb42375baf4f51283c33befce095fc5
+      - uses: taiki-e/install-action@ef1f08ff7e5a9451af03151a0e3dc0785d5c9673
         with:
           tool: wasmtime,cargo-wasi
       - env:
