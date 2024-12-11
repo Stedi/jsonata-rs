@@ -65,7 +65,7 @@ pub enum TokenKind {
     Bool(bool),
     Str(String),
     Number(f64),
-    Regex(RegexLiteral),
+    Regex(Box<RegexLiteral>),
 
     // Identifiers
     Name(String),
@@ -411,7 +411,7 @@ impl<'a> Tokenizer<'a> {
                                 |e| Error::S0303InvalidRegex(self.start_char_index, e.to_string()),
                             )?;
 
-                        Regex(regex_literal)
+                        Regex(Box::new(regex_literal))
                     }
                     _ => ForwardSlash,
                 },
