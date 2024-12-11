@@ -76,7 +76,7 @@ pub enum AstKind {
     Bool(bool),
     String(String),
     Number(f64),
-    Regex(RegexLiteral),
+    Regex(Box<RegexLiteral>),
     Name(String),
     Var(String),
     Unary(UnaryOp),

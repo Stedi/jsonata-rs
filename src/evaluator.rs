@@ -134,7 +134,8 @@ impl<'a> Evaluator<'a> {
             } => Value::transformer(self.arena, pattern, update, delete),
             AstKind::Regex(ref regex_literal) => {
                 // Wrap the regex literal in a `Value::Regex` and return it
-                self.arena.alloc(Value::Regex(regex_literal.clone()))
+                self.arena
+                    .alloc(Value::Regex(regex_literal.as_ref().to_owned()))
             }
             _ => unimplemented!("TODO: node kind not yet supported: {:#?}", node.kind),
         };
