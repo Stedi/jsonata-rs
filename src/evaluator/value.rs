@@ -51,7 +51,7 @@ pub enum Value<'a> {
     Number(f64),
     Bool(bool),
     String(BumpString<'a>),
-    Regex(RegexLiteral),
+    Regex(std::boxed::Box<RegexLiteral>),
     Array(BumpVec<'a, &'a Value<'a>>, ArrayFlags),
     Object(HashMap<BumpString<'a>, &'a Value<'a>, DefaultHashBuilder, &'a Bump>),
     Range(Range<'a>),
