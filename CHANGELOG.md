@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.3.3](https://github.com/Stedi/jsonata-rs/compare/v0.3.2...v0.3.3) - 2024-12-12
+
+### Fixed
+
+- reduce stack memory usage by boxing more regex types ([#153](https://github.com/Stedi/jsonata-rs/pull/153))
+
 ## [0.3.2](https://github.com/Stedi/jsonata-rs/compare/v0.3.1...v0.3.2) - 2024-12-11
 
 ### Fixed
