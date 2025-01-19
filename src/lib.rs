@@ -184,7 +184,7 @@ impl<'a> JsonAta<'a> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{DateTime, Datelike, Local, Offset};
+    use chrono::{DateTime, Datelike, Offset, Utc};
     use regress::Regex;
 
     use bumpalo::collections::String as BumpString;
@@ -797,7 +797,7 @@ mod tests {
         let result = jsonata.evaluate(None, None).unwrap();
 
         // Dynamically compute the expected result
-        let now = Local::now();
+        let now = Utc::now();
         let expected = format!(
             "{:02}{:02}{:02}",
             now.year() % 100, // Last two digits of the year
