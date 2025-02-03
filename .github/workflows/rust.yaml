@@ -31,13 +31,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@315e265cd78dad1e1dcf3a5074f6d6c47029d5aa # stable
         with:
           toolchain: stable
-          target: wasm32-wasi
+          target: wasm32-wasip1
       - uses: taiki-e/install-action@c4bf614c2fb42375baf4f51283c33befce095fc5
         with:
-          tool: wasmtime,cargo-wasi
-      - env:
-          CARGO_TARGET_WASM32_WASI_RUNNER: "wasmtime --dir=."
-        run: cargo wasi test -- --nocapture
+          tool: wasmtime
+      - run: cargo test --target wasm32-wasip1
 
   fmt_lint:
     permissions:
