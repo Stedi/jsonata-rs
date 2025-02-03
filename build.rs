@@ -5,11 +5,18 @@ use std::io::Write;
 use std::path::Path;
 
 fn main() {
+    println!("cargo:rerun-if-changed=tests/testsuite/**/*.json");
+    println!("cargo:rerun-if-changed=tests/customsuite/**/*.json");
+
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("generated_tests.rs");
     let mut file = fs::File::create(dest_path).unwrap();
 
-    let resources = get_test_resources("tests/testsuite/**/*.json");
+    let resources = {
+        let mut r = get_test_resources("tests/testsuite/**/*.json");
+        r.extend(get_test_resources("tests/customsuite/**/*.json"));
+        r
+    };
 
     for resource in resources {
         if resource.contains("/skip/") {

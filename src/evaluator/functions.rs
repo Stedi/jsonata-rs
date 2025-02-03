@@ -1943,7 +1943,8 @@ pub fn fn_reduce<'a>(
 
         match result {
             Ok(new_accumulator) => {
-                accumulator = new_accumulator;
+                // If the result is a thunk, let's evaluate it so it's ready for the next iteration
+                accumulator = context.trampoline_evaluate_value(new_accumulator)?;
             }
             Err(_) => {
                 return Err(Error::T0410ArgumentNotValid(1, 1, context.name.to_string()));

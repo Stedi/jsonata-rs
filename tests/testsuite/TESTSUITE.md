@@ -1,5 +1,7 @@
 # Jsonata Test Suite
 
+> Note: this directory is a fork from the `jsonata-js` repo here: [jsonata-js/jsonata](https://github.com/jsonata-js/jsonata/tree/master/test/test-suite)
+
 The data contained in this directory is an attempt at a language neutral
 test suite for `jsonata`. The original test suite (written in Javascript)
 was transformed into a series of JSON files.
