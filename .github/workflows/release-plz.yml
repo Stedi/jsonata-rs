@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub token
-        uses: actions/create-github-app-token@5d869da34e18e7287c1daad50e0b8ea0f506ce69 # v1
+        uses: actions/create-github-app-token@136412a57a7081aa63c935a2cc2918f76c34f514 # v1
         id: generate-token
         with:
           # GitHub App ID secret name
@@ -30,11 +30,11 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@315e265cd78dad1e1dcf3a5074f6d6c47029d5aa # stable
+        uses: dtolnay/rust-toolchain@c5a29ddb4d9d194e7c84ec8c3fba61b1c31fee8c # stable
         with:
           toolchain: stable
       - name: Run release-plz release
-        uses: MarcoIeni/release-plz-action@2d634174257b7f46339e7533865a910743a0c5c9 # v0.5
+        uses: MarcoIeni/release-plz-action@269387141c39d8ba9eed025ab109e462ada263f2 # v0.5
         with:
           command: release
         env:
@@ -53,7 +53,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Generate GitHub token
-        uses: actions/create-github-app-token@5d869da34e18e7287c1daad50e0b8ea0f506ce69 # v1
+        uses: actions/create-github-app-token@136412a57a7081aa63c935a2cc2918f76c34f514 # v1
         id: generate-token
         with:
           # GitHub App ID secret name
@@ -66,11 +66,11 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@315e265cd78dad1e1dcf3a5074f6d6c47029d5aa # stable
+        uses: dtolnay/rust-toolchain@c5a29ddb4d9d194e7c84ec8c3fba61b1c31fee8c # stable
         with:
           toolchain: stable
       - name: Run release-plz PR task
-        uses: MarcoIeni/release-plz-action@2d634174257b7f46339e7533865a910743a0c5c9 # v0.5
+        uses: MarcoIeni/release-plz-action@269387141c39d8ba9eed025ab109e462ada263f2 # v0.5
         with:
           command: release-pr
         env:
