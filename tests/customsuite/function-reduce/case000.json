@@ -1,0 +1,11 @@
+{
+  "comment": "when reducing, thunks should be evaluated automatically",
+  "expr": "$reduce([{\"a\": 1}, {\"b\": 1}, {\"c\": 1}], function($acc, $n) { $merge([$acc, $n]) })",
+  "dataset": null,
+  "bindings": {},
+  "result": {
+    "a": 1,
+    "b": 1,
+    "c": 1
+  }
+}
