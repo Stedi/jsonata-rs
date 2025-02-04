@@ -510,6 +510,13 @@ impl<'a> Value<'a> {
         }
     }
 
+    pub fn extract_wrapped_array_or_self(&'a self) -> &'a Value<'a> {
+        match self {
+            Value::Array(array, ..) if self.has_flags(ArrayFlags::WRAPPED) => array[0],
+            _ => self,
+        }
+    }
+
     pub fn clone(&'a self, arena: &'a Bump) -> &'a mut Value<'a> {
         match self {
             Self::Undefined => arena.alloc(Value::Undefined),

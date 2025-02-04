@@ -184,7 +184,7 @@ impl<'a> JsonAta<'a> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{DateTime, Datelike, Local, Offset};
+    use chrono::{DateTime, Datelike, Offset, Utc};
     use regress::Regex;
 
     use bumpalo::collections::String as BumpString;
@@ -797,7 +797,7 @@ mod tests {
         let result = jsonata.evaluate(None, None).unwrap();
 
         // Dynamically compute the expected result
-        let now = Local::now();
+        let now = Utc::now();
         let expected = format!(
             "{:02}{:02}{:02}",
             now.year() % 100, // Last two digits of the year
@@ -811,5 +811,31 @@ mod tests {
 
         // Verify the result matches the expected value
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_number_implicit_context_arg() {
+        let arena = Bump::new();
+
+        let num: &Value = Value::number(&arena, 123);
+        let arr: &Value = &Value::Array(
+            bumpalo::collections::Vec::from_iter_in([num, num], &arena),
+            ArrayFlags::empty(),
+        );
+        let err = Error::D3030NonNumericCast(18, "\"abc\"".to_string());
+
+        let cases = [
+            ("( $x := '123'; $x.$number() )", Ok(num)),
+            ("( $x := '123'; $x.$number($number()) )", Ok(num)),
+            ("( $x := ['123', '123']; $x.$number() )", Ok(arr)),
+            ("( $x := []; $x.$number() )", Ok(Value::undefined())),
+            ("( $x := 'abc'; $x.$number() )", Err(err)),
+        ];
+        for (expr, expected) in cases.iter() {
+            let jsonata = JsonAta::new(expr, &arena).unwrap();
+            let result = jsonata.evaluate(None, None);
+
+            assert_eq!(*expected, result);
+        }
     }
 }
