@@ -32,7 +32,7 @@ jobs:
         with:
           toolchain: stable
           target: wasm32-wasip1
-      - uses: taiki-e/install-action@4666e0456051edf22fc0bae331c1df874bcaf291
+      - uses: taiki-e/install-action@011a3fc5ceaa61cd8ab6328ca5422b555da2a1b6
         with:
           tool: wasmtime
       - run: cargo test --target wasm32-wasip1
