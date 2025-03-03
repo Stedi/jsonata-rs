@@ -300,9 +300,9 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn get_codepoint(&mut self) -> Result<u16> {
-        Ok(self.get_hex_digit()? << 12
-            | self.get_hex_digit()? << 8
-            | self.get_hex_digit()? << 4
+        Ok((self.get_hex_digit()? << 12)
+            | (self.get_hex_digit()? << 8)
+            | (self.get_hex_digit()? << 4)
             | self.get_hex_digit()?)
     }
 
