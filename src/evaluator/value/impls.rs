@@ -140,6 +140,6 @@ impl Hash for Value<'_> {
 impl Eq for Value<'_> {}
 
 fn generate_random_hash<H: Hasher>(state: &mut H) {
-    let random_number: u64 = rand::thread_rng().gen();
+    let random_number: u64 = rand::rng().random();
     random_number.hash(state);
 }

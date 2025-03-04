@@ -1198,7 +1198,7 @@ pub fn fn_random<'a>(
 ) -> Result<&'a Value<'a>> {
     max_args!(context, args, 0);
 
-    let v: f32 = rand::thread_rng().gen();
+    let v: f32 = rand::rng().random();
     Ok(Value::number(context.arena, v))
 }
 
