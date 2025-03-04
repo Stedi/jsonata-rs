@@ -56,7 +56,12 @@ fn test_case(resource: &str) {
         let dataset = &case["dataset"];
 
         let data = if dataset.is_string() {
-            let dataset = format!("tests/testsuite/datasets/{}.json", dataset.as_str());
+            let subdir = if resource.contains("customsuite") {
+                "customsuite"
+            } else {
+                "testsuite"
+            };
+            let dataset = format!("tests/{subdir}/datasets/{}.json", dataset.as_str());
             fs::read_to_string(&dataset).unwrap()
         } else if data.is_undefined() {
             "".to_string()

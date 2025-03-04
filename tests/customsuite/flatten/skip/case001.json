@@ -1,0 +1,7 @@
+{
+  "comment": "using an asterisk path should flatten an array",
+  "expr": "$.arrayOfArrays.*",
+  "dataset": "customdataset0",
+  "bindings": {},
+  "result": [1, 2, 3, 4, 5, 6, 7, 8, 9]
+}
