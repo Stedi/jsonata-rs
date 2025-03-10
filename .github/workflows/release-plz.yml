@@ -34,7 +34,7 @@ jobs:
         with:
           toolchain: stable
       - name: Run release-plz release
-        uses: MarcoIeni/release-plz-action@704937995982d7590add777dbdb2bf7aa94a6cf6 # v0.5
+        uses: MarcoIeni/release-plz-action@476794ede164c5137bfc3a1dc6ed3675275690f9 # v0.5
         with:
           command: release
         env:
@@ -70,7 +70,7 @@ jobs:
         with:
           toolchain: stable
       - name: Run release-plz PR task
-        uses: MarcoIeni/release-plz-action@704937995982d7590add777dbdb2bf7aa94a6cf6 # v0.5
+        uses: MarcoIeni/release-plz-action@476794ede164c5137bfc3a1dc6ed3675275690f9 # v0.5
         with:
           command: release-pr
         env:
