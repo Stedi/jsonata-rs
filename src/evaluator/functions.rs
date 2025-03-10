@@ -1170,7 +1170,10 @@ pub fn fn_number<'a>(
 ) -> Result<&'a Value<'a>> {
     max_args!(context, args, 1);
 
-    let arg = args.first().copied().unwrap_or_else(Value::undefined);
+    let arg = args
+        .first()
+        .copied()
+        .unwrap_or(context.input.extract_wrapped_array_or_self());
 
     match arg {
         Value::Undefined => Ok(Value::undefined()),
