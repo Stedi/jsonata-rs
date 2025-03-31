@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub token
-        uses: actions/create-github-app-token@af35edadc00be37caa72ed9f3e6d5f7801bfdf09 # v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
         id: generate-token
         with:
           # GitHub App ID secret name
@@ -34,7 +34,7 @@ jobs:
         with:
           toolchain: stable
       - name: Run release-plz release
-        uses: MarcoIeni/release-plz-action@4cd77ee4d22f0cdb1a461e6eb3591cddc5e1f665 # v0.5
+        uses: MarcoIeni/release-plz-action@8e91c71a60327f76b30233d17e3cabb316522e8f # v0.5
         with:
           command: release
         env:
@@ -53,7 +53,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Generate GitHub token
-        uses: actions/create-github-app-token@af35edadc00be37caa72ed9f3e6d5f7801bfdf09 # v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
         id: generate-token
         with:
           # GitHub App ID secret name
@@ -70,7 +70,7 @@ jobs:
         with:
           toolchain: stable
       - name: Run release-plz PR task
-        uses: MarcoIeni/release-plz-action@4cd77ee4d22f0cdb1a461e6eb3591cddc5e1f665 # v0.5
+        uses: MarcoIeni/release-plz-action@8e91c71a60327f76b30233d17e3cabb316522e8f # v0.5
         with:
           command: release-pr
         env:
