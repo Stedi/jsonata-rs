@@ -1435,8 +1435,7 @@ pub fn fn_zip<'a>(
         .collect();
 
     // Use an iterator of zipping all the array iterators and collect the result in bumpalo
-    let result: bumpalo::collections::Vec<&Value<'a>> = std::iter::repeat(())
-        .take(min_length)
+    let result: bumpalo::collections::Vec<&Value<'a>> = std::iter::repeat_n((), min_length)
         .map(|_| {
             let zipped: bumpalo::collections::Vec<&Value<'a>> = iterators
                 .iter_mut()
