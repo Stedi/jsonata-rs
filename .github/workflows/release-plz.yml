@@ -41,7 +41,7 @@ jobs:
           fi
         shell: bash
       - name: Run release-plz release
-        uses: MarcoIeni/release-plz-action@8e91c71a60327f76b30233d17e3cabb316522e8f # v0.5
+        uses: MarcoIeni/release-plz-action@57d6b19001af9a5f21e461fc67adbb5a5f4d5ebe # v0.5
         with:
           command: release
         env:
@@ -84,7 +84,7 @@ jobs:
           fi
         shell: bash
       - name: Run release-plz PR task
-        uses: MarcoIeni/release-plz-action@8e91c71a60327f76b30233d17e3cabb316522e8f # v0.5
+        uses: MarcoIeni/release-plz-action@57d6b19001af9a5f21e461fc67adbb5a5f4d5ebe # v0.5
         with:
           command: release-pr
         env:
