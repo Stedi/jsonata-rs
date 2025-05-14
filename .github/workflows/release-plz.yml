@@ -29,10 +29,17 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0 # stable
-        with:
-          toolchain: stable
+      - run: |
+          : set $CARGO_HOME
+          echo CARGO_HOME=${CARGO_HOME:-"${{'$HOME/.cargo'}}"} >> $GITHUB_ENV
+        shell: bash
+      - run: |
+          : install rustup if needed
+          if ! command -v rustup &>/dev/null; then
+            curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs | sh -s -- --profile default -y
+            echo "$CARGO_HOME/bin" >> $GITHUB_PATH
+          fi
+        shell: bash
       - name: Run release-plz release
         uses: MarcoIeni/release-plz-action@8e91c71a60327f76b30233d17e3cabb316522e8f # v0.5
         with:
@@ -65,10 +72,17 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0 # stable
-        with:
-          toolchain: stable
+      - run: |
+          : set $CARGO_HOME
+          echo CARGO_HOME=${CARGO_HOME:-"${{'$HOME/.cargo'}}"} >> $GITHUB_ENV
+        shell: bash
+      - run: |
+          : install rustup if needed
+          if ! command -v rustup &>/dev/null; then
+            curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs | sh -s -- --profile default -y
+            echo "$CARGO_HOME/bin" >> $GITHUB_PATH
+          fi
+        shell: bash
       - name: Run release-plz PR task
         uses: MarcoIeni/release-plz-action@8e91c71a60327f76b30233d17e3cabb316522e8f # v0.5
         with:
