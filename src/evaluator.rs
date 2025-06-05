@@ -181,7 +181,7 @@ impl<'a> Evaluator<'a> {
         input: &'a Value<'a>,
         frame: &Frame<'a>,
     ) -> Result<&'a Value<'a>> {
-        let frame = Frame::new_with_parent(frame);
+        let frame = Frame::new_with_parent(self.arena, frame);
         if exprs.is_empty() {
             return Ok(Value::undefined());
         }
@@ -287,7 +287,7 @@ impl<'a> Evaluator<'a> {
 
         for item in input.members() {
             let tuple_frame = if reduce {
-                Some(Frame::from_tuple(frame, item))
+                Some(Frame::from_tuple(self.arena, frame, item))
             } else {
                 None
             };
@@ -332,7 +332,7 @@ impl<'a> Evaluator<'a> {
                 // TODO: Do we need this? JSONata does this, but it's difficult with the mutability
                 // of our values.
                 // tuple.remove_entry("@");
-                let tuple_frame = Frame::from_tuple(frame, tuple);
+                let tuple_frame = Frame::from_tuple(self.arena, frame, tuple);
                 self.evaluate(&object[group.index].1, context, &tuple_frame)?
             } else {
                 self.evaluate(&object[group.index].1, group.data, frame)?
@@ -845,7 +845,7 @@ impl<'a> Evaluator<'a> {
         let result = Value::array(self.arena, ArrayFlags::SEQUENCE | ArrayFlags::TUPLE_STREAM);
 
         for tuple in tuple_bindings.members() {
-            let step_frame = Frame::from_tuple(frame, tuple);
+            let step_frame = Frame::from_tuple(self.arena, frame, tuple);
             let mut binding_sequence = self.evaluate(step, &tuple["@"], &step_frame)?;
             if !binding_sequence.is_undefined() {
                 binding_sequence = Value::wrap_in_array_if_needed(
@@ -914,14 +914,14 @@ impl<'a> Evaluator<'a> {
 
             for (sort_term, descending) in sort_terms {
                 let aa = if is_tuple_sort {
-                    let tuple_frame = Frame::from_tuple(frame, a);
+                    let tuple_frame = Frame::from_tuple(self.arena, frame, a);
                     self.evaluate(sort_term, &a["@"], &tuple_frame)?
                 } else {
                     self.evaluate(sort_term, a, frame)?
                 };
 
                 let bb = if is_tuple_sort {
-                    let tuple_frame = Frame::from_tuple(frame, b);
+                    let tuple_frame = Frame::from_tuple(self.arena, frame, b);
                     self.evaluate(sort_term, &b["@"], &tuple_frame)?
                 } else {
                     self.evaluate(sort_term, b, frame)?
@@ -1065,7 +1065,7 @@ impl<'a> Evaluator<'a> {
             _ => {
                 for (item_index, item) in input.members().enumerate() {
                     let mut index = if input.has_flags(ArrayFlags::TUPLE_STREAM) {
-                        let tuple_frame = Frame::from_tuple(frame, item);
+                        let tuple_frame = Frame::from_tuple(self.arena, frame, item);
                         self.evaluate(predicate, &item["@"], &tuple_frame)?
                     } else {
                         self.evaluate(predicate, item, frame)?
@@ -1272,7 +1272,7 @@ impl<'a> Evaluator<'a> {
                 } = ast.kind
                 {
                     // Create a new frame for use in the lambda, so it can have locals
-                    let frame = Frame::new_with_parent(frame);
+                    let frame = Frame::new_with_parent(self.arena, frame);
 
                     // Bind the arguments to their respective names
                     for (index, arg) in args.iter().enumerate() {

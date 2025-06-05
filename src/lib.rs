@@ -27,7 +27,7 @@ impl<'a> JsonAta<'a> {
     pub fn new(expr: &str, arena: &'a Bump) -> Result<JsonAta<'a>> {
         Ok(Self {
             ast: parser::parse(expr)?,
-            frame: Frame::new(),
+            frame: Frame::new(arena),
             arena,
         })
     }
@@ -102,7 +102,7 @@ impl<'a> JsonAta<'a> {
             Some(input) => {
                 let input_ast = parser::parse(input)?;
                 let evaluator = Evaluator::new(None, self.arena, None, None);
-                evaluator.evaluate(&input_ast, Value::undefined(), &Frame::new())?
+                evaluator.evaluate(&input_ast, Value::undefined(), &Frame::new(self.arena))?
             }
             None => Value::undefined(),
         };
