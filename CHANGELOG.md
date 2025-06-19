@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.3.5](https://github.com/Stedi/jsonata-rs/compare/v0.3.4...v0.3.5) - 2025-03-31
+
+### Fixed
+
+- *(deps)* update rust crate rand to 0.9.0 ([#162](https://github.com/Stedi/jsonata-rs/pull/162))
+
+### Other
+
+- *(deps)* update github actions upgrade ([#170](https://github.com/Stedi/jsonata-rs/pull/170))
+- *(deps)* update github actions upgrade ([#169](https://github.com/Stedi/jsonata-rs/pull/169))
+- *(deps)* update github actions upgrade ([#168](https://github.com/Stedi/jsonata-rs/pull/168))
+- *(deps)* update github actions upgrade ([#166](https://github.com/Stedi/jsonata-rs/pull/166))
+- *(deps)* update rust crate regress to v0.10.3 ([#167](https://github.com/Stedi/jsonata-rs/pull/167))
+- *(deps)* update github actions upgrade ([#161](https://github.com/Stedi/jsonata-rs/pull/161))
+- *(deps)* pin dependencies ([#160](https://github.com/Stedi/jsonata-rs/pull/160))
+- add failing test case for  syntax ([#163](https://github.com/Stedi/jsonata-rs/pull/163))
+
 ## [0.3.4](https://github.com/Stedi/jsonata-rs/compare/v0.3.3...v0.3.4) - 2025-02-03
 
 ### Fixed
