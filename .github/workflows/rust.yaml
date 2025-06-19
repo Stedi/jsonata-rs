@@ -50,7 +50,7 @@ jobs:
       - run: |
           : install wasm32-wasip1 target
           rustup target add wasm32-wasip1
-      - uses: taiki-e/install-action@821228b8cafb287eaf797eee5a6d4fb06c2a354a
+      - uses: taiki-e/install-action@7afdc6d42b8a0836d419801f49ca712b52208bf7
         with:
           tool: wasmtime
       - run: cargo test --target wasm32-wasip1
