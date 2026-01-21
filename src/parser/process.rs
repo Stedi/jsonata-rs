@@ -73,10 +73,10 @@ fn process_ternary(node: Ast) -> Result<Ast> {
         ref mut falsy,
     } = node.kind
     {
-        *cond = Box::new(process_ast(take(cond))?);
-        *truthy = Box::new(process_ast(take(truthy))?);
+        **cond = process_ast(take(cond))?;
+        **truthy = process_ast(take(truthy))?;
         if let Some(ref mut falsy) = falsy {
-            *falsy = Box::new(process_ast(take(falsy))?);
+            **falsy = process_ast(take(falsy))?;
         }
     } else {
         unreachable!()
@@ -93,10 +93,10 @@ fn process_transform(node: Ast) -> Result<Ast> {
         ref mut delete,
     } = node.kind
     {
-        *pattern = Box::new(process_ast(take(pattern))?);
-        *update = Box::new(process_ast(take(update))?);
+        **pattern = process_ast(take(pattern))?;
+        **update = process_ast(take(update))?;
         if let Some(ref mut delete) = delete {
-            *delete = Box::new(process_ast(take(delete))?);
+            **delete = process_ast(take(delete))?;
         }
     }
 
@@ -161,8 +161,8 @@ fn process_binary(node: Ast) -> Result<Ast> {
             process_index_bind(node.char_index, lhs, rhs)
         }
         AstKind::Binary(_, ref mut lhs, ref mut rhs) => {
-            *lhs = Box::new(process_ast(take(lhs))?);
-            *rhs = Box::new(process_ast(take(rhs))?);
+            **lhs = process_ast(take(lhs))?;
+            **rhs = process_ast(take(rhs))?;
             Ok(node)
         }
         _ => unreachable!(),
@@ -395,7 +395,7 @@ fn process_order_by(char_index: usize, lhs: &mut Box<Ast>, rhs: &mut SortTerms) 
 }
 
 fn process_function(proc: &mut Box<Ast>, args: &mut [Ast]) -> Result<()> {
-    *proc = Box::new(process_ast(take(&mut *proc))?);
+    **proc = process_ast(take(&mut *proc))?;
     for arg in args.iter_mut() {
         *arg = process_ast(take(arg))?;
     }
@@ -405,7 +405,7 @@ fn process_function(proc: &mut Box<Ast>, args: &mut [Ast]) -> Result<()> {
 fn process_lambda(body: &mut Box<Ast>) -> Result<()> {
     let new_body = process_ast(take(body))?;
     let new_body = tail_call_optimize(new_body)?;
-    *body = Box::new(new_body);
+    **body = new_body;
     Ok(())
 }
 
@@ -426,7 +426,7 @@ fn tail_call_optimize(mut expr: Ast) -> Result<Ast> {
             Ok(thunk)
         }
         AstKind::Ternary { truthy, falsy, .. } => {
-            *truthy = Box::new(tail_call_optimize(take(truthy))?);
+            **truthy = tail_call_optimize(take(truthy))?;
             if let Some(inner) = falsy {
                 *falsy = Some(Box::new(tail_call_optimize(take(inner))?));
             }

@@ -80,7 +80,7 @@ impl<'a> Value<'a> {
         unsafe { std::mem::transmute::<&Value<'static>, &'a Value<'a>>(&UNDEFINED) }
     }
 
-    pub fn null(arena: &Bump) -> &mut Value {
+    pub fn null(arena: &'a Bump) -> &'a mut Value<'a> {
         arena.alloc(Value::Null)
     }
 
@@ -92,11 +92,11 @@ impl<'a> Value<'a> {
         }
     }
 
-    pub fn number(arena: &Bump, value: impl Into<f64>) -> &mut Value {
+    pub fn number(arena: &'a Bump, value: impl Into<f64>) -> &'a mut Value<'a> {
         arena.alloc(Value::Number(value.into()))
     }
 
-    pub fn number_from_u128(arena: &Bump, value: u128) -> Result<&mut Value> {
+    pub fn number_from_u128(arena: &'a Bump, value: u128) -> Result<&'a mut Value<'a>> {
         let value_f64 = value as f64;
         if value_f64 as u128 != value {
             // number is too large to retain precision
@@ -109,7 +109,7 @@ impl<'a> Value<'a> {
         arena.alloc(Value::String(BumpString::from_str_in(value, arena)))
     }
 
-    pub fn array(arena: &Bump, flags: ArrayFlags) -> &mut Value {
+    pub fn array(arena: &'a Bump, flags: ArrayFlags) -> &'a mut Value<'a> {
         let v = BumpVec::new_in(arena);
         arena.alloc(Value::Array(v, flags))
     }
@@ -122,14 +122,18 @@ impl<'a> Value<'a> {
         arena.alloc(Value::Array(arr, flags))
     }
 
-    pub fn array_with_capacity(arena: &Bump, capacity: usize, flags: ArrayFlags) -> &mut Value {
+    pub fn array_with_capacity(
+        arena: &'a Bump,
+        capacity: usize,
+        flags: ArrayFlags,
+    ) -> &'a mut Value<'a> {
         arena.alloc(Value::Array(
             BumpVec::with_capacity_in(capacity, arena),
             flags,
         ))
     }
 
-    pub fn object(arena: &Bump) -> &mut Value {
+    pub fn object(arena: &'a Bump) -> &'a mut Value<'a> {
         arena.alloc(Value::Object(HashMap::new_in(arena)))
     }
 
@@ -144,7 +148,7 @@ impl<'a> Value<'a> {
         result
     }
 
-    pub fn object_with_capacity(arena: &Bump, capacity: usize) -> &mut Value {
+    pub fn object_with_capacity(arena: &'a Bump, capacity: usize) -> &'a mut Value<'a> {
         arena.alloc(Value::Object(HashMap::with_capacity_in(capacity, arena)))
     }
 
@@ -342,7 +346,7 @@ impl<'a> Value<'a> {
         }
     }
 
-    pub fn entries(&self) -> hashbrown::hash_map::Iter<'_, BumpString<'a>, &'a Value> {
+    pub fn entries(&self) -> hashbrown::hash_map::Iter<'_, BumpString<'a>, &'a Value<'a>> {
         match self {
             Value::Object(map) => map.iter(),
             _ => panic!("Not an object"),

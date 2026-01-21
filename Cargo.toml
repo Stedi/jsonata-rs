@@ -11,27 +11,27 @@ keywords = ["jsonata", "json"]
 categories = ["command-line-utilities", "compilers", "parser-implementations"]
 
 [dependencies]
-chrono = "0.4.38"
-clap = { version = "4.5.4", features = ["derive"] }
+base64 = "0.22.1"
 bitflags = "2.5.0"
 bumpalo = { version = "3.16.0", features = [
     "collections",
     "boxed",
     "allocator-api2",
 ] }
-hashbrown = "0.15.0"
+chrono = "0.4.38"
+clap = { version = "4.5.4", features = ["derive"] }
 dtoa = "1.0.9"
-base64 = "0.22.1"
-serde_json = "1.0.117"
+hashbrown = "0.15.0"
+num-format = "0.4.4"
 rand = "0.9.0"
 regress = "0.10.1"
-num-format = "0.4.4"
+serde_json = "1.0.117"
 uuid = { version = "1.8.0", features = ["fast-rng", "v4", "v7"] }
-
-[dev-dependencies]
-test-case = "=3.3.1"
-test-generator = "=0.3.1"
-regress = "=0.10.3"
 
 [build-dependencies]
 glob = "0.3"
+
+[dev-dependencies]
+regress = "=0.10.3"
+test-case = "=3.3.1"
+test-generator = "=0.3.1"

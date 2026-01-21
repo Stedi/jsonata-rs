@@ -940,7 +940,7 @@ fn to_words(num: u32) -> String {
         below_20[num as usize].to_string()
     } else if num < 100 {
         // Handle multiples of 10 (20, 30, etc.)
-        if num % 10 == 0 {
+        if num.is_multiple_of(10) {
             return tens[(num / 10) as usize].to_string();
         }
         // Handle numbers between 21-99

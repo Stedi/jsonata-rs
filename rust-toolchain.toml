@@ -1,0 +1,5 @@
+[toolchain]
+# renovate-automation: rustc version
+channel = "1.92.0"
+components = ["clippy", "rustfmt", "rust-analyzer"]
+targets = [ "aarch64-unknown-linux-gnu" ]
