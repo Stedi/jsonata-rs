@@ -17,7 +17,7 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - run: |
           : set $CARGO_HOME
           echo CARGO_HOME=${CARGO_HOME:-"${{'$HOME/.cargo'}}"} >> $GITHUB_ENV
@@ -35,7 +35,7 @@ jobs:
     name: Test WebAssembly (WASI)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - run: |
           : set $CARGO_HOME
           echo CARGO_HOME=${CARGO_HOME:-"${{'$HOME/.cargo'}}"} >> $GITHUB_ENV
@@ -50,7 +50,7 @@ jobs:
       - run: |
           : install wasm32-wasip1 target
           rustup target add wasm32-wasip1
-      - uses: taiki-e/install-action@821228b8cafb287eaf797eee5a6d4fb06c2a354a
+      - uses: taiki-e/install-action@c438e47b2cab07673d1d38865a7ee912da5e72f2
         with:
           tool: wasmtime
       - run: cargo test --target wasm32-wasip1
@@ -61,7 +61,7 @@ jobs:
     name: Format/Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - run: |
           : set $CARGO_HOME
           echo CARGO_HOME=${CARGO_HOME:-"${{'$HOME/.cargo'}}"} >> $GITHUB_ENV

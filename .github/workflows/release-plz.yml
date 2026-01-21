@@ -25,7 +25,7 @@ jobs:
           # GitHub App private key secret name
           private-key: ${{ secrets.RELEASE_PLZ_PRIVATE_KEY }}
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
@@ -41,7 +41,7 @@ jobs:
           fi
         shell: bash
       - name: Run release-plz release
-        uses: MarcoIeni/release-plz-action@dde7b63054529c440305a924e5849c68318bcc9a # v0.5
+        uses: MarcoIeni/release-plz-action@5ab144c9d67d4346240190d0f95ed08668677928 # v0.5
         with:
           command: release
         env:
@@ -68,7 +68,7 @@ jobs:
           # GitHub App private key secret name
           private-key: ${{ secrets.RELEASE_PLZ_PRIVATE_KEY }}
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
@@ -84,7 +84,7 @@ jobs:
           fi
         shell: bash
       - name: Run release-plz PR task
-        uses: MarcoIeni/release-plz-action@dde7b63054529c440305a924e5849c68318bcc9a # v0.5
+        uses: MarcoIeni/release-plz-action@5ab144c9d67d4346240190d0f95ed08668677928 # v0.5
         with:
           command: release-pr
         env:
