@@ -118,6 +118,26 @@ pub enum AstKind {
     Index(String),
 }
 
+/// Rarely-populated decoration fields, boxed to reduce the size of `Ast` on the stack.
+#[derive(Debug, Clone, Default)]
+pub struct AstExtras {
+    /// An optional group by expression, represented as an object.
+    pub group_by: Option<(usize, Object)>,
+
+    /// An optional list of predicates.
+    pub predicates: Option<Vec<Ast>>,
+
+    /// An optional list of evaluation stages, for example this specifies the filtering and
+    /// indexing for various expressions.
+    pub stages: Option<Vec<Ast>>,
+
+    /// A variable to bind the index of a step to
+    pub index: Option<String>,
+
+    /// A variable to bind the context of a step to
+    pub focus: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Ast {
     pub kind: AstKind,
@@ -129,25 +149,11 @@ pub struct Ast {
     pub cons_array: bool,
     pub keep_singleton_array: bool,
 
-    /// An optional group by expression, represented as an object.
-    pub group_by: Option<(usize, Object)>,
-
-    /// An optional list of predicates.
-    pub predicates: Option<Vec<Ast>>,
-
-    /// An optional list of evaluation stages, for example this specifies the filtering and
-    /// indexing for various expressions.
-    pub stages: Option<Vec<Ast>>,
-
     /// Set on a step to indicate that it produces tuple bindings for things like index and focus
     /// binds, and parent resolution.
     pub tuple: bool,
 
-    /// A variable to bind the index of a step to
-    pub index: Option<String>,
-
-    // A variable to bind the context of a step to
-    pub focus: Option<String>,
+    extras: Option<Box<AstExtras>>,
 }
 
 impl Default for Ast {
@@ -164,12 +170,59 @@ impl Ast {
             keep_array: false,
             cons_array: false,
             keep_singleton_array: false,
-            group_by: None,
-            predicates: None,
-            stages: None,
             tuple: false,
-            index: None,
-            focus: None,
+            extras: None,
         }
+    }
+
+    /// Returns a mutable reference to the extras, lazily initializing if absent.
+    pub fn extras_mut(&mut self) -> &mut AstExtras {
+        self.extras
+            .get_or_insert_with(|| Box::new(AstExtras::default()))
+    }
+
+    /// Returns a reference to the extras, if present.
+    pub fn extras(&self) -> Option<&AstExtras> {
+        self.extras.as_deref()
+    }
+
+    pub fn group_by(&self) -> Option<&(usize, Object)> {
+        self.extras.as_ref().and_then(|e| e.group_by.as_ref())
+    }
+
+    pub fn group_by_mut(&mut self) -> &mut Option<(usize, Object)> {
+        &mut self.extras_mut().group_by
+    }
+
+    pub fn predicates(&self) -> Option<&Vec<Ast>> {
+        self.extras.as_ref().and_then(|e| e.predicates.as_ref())
+    }
+
+    pub fn predicates_mut(&mut self) -> &mut Option<Vec<Ast>> {
+        &mut self.extras_mut().predicates
+    }
+
+    pub fn stages(&self) -> Option<&Vec<Ast>> {
+        self.extras.as_ref().and_then(|e| e.stages.as_ref())
+    }
+
+    pub fn stages_mut(&mut self) -> &mut Option<Vec<Ast>> {
+        &mut self.extras_mut().stages
+    }
+
+    pub fn index(&self) -> Option<&String> {
+        self.extras.as_ref().and_then(|e| e.index.as_ref())
+    }
+
+    pub fn index_mut(&mut self) -> &mut Option<String> {
+        &mut self.extras_mut().index
+    }
+
+    pub fn focus(&self) -> Option<&String> {
+        self.extras.as_ref().and_then(|e| e.focus.as_ref())
+    }
+
+    pub fn focus_mut(&mut self) -> &mut Option<String> {
+        &mut self.extras_mut().focus
     }
 }

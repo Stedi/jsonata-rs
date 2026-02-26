@@ -139,7 +139,7 @@ impl<'a> Evaluator<'a> {
             _ => unimplemented!("TODO: node kind not yet supported: {:#?}", node.kind),
         };
 
-        if let Some(filters) = &node.predicates {
+        if let Some(filters) = node.predicates() {
             for filter in filters {
                 if let AstKind::Filter(ref expr) = filter.kind {
                     result = self.evaluate_filter(expr, result, frame)?
@@ -717,7 +717,7 @@ impl<'a> Evaluator<'a> {
             result = result.clone_array_with_flags(self.arena, flags | ArrayFlags::SINGLETON);
         }
 
-        if let Some((char_index, ref object)) = node.group_by {
+        if let Some(&(char_index, ref object)) = node.group_by() {
             self.evaluate_group_expression(
                 char_index,
                 object,
@@ -742,7 +742,7 @@ impl<'a> Evaluator<'a> {
     ) -> Result<&'a Value<'a>> {
         if let AstKind::Sort(ref sort_terms) = step.kind {
             let mut result = self.evaluate_sort(step.char_index, sort_terms, input, frame)?;
-            if let Some(ref stages) = step.stages {
+            if let Some(stages) = step.stages() {
                 result = self.evaluate_stages(stages, result, frame)?;
             }
             return Ok(result);
@@ -752,13 +752,13 @@ impl<'a> Evaluator<'a> {
 
         // Evaluate the step on each member of the input
         for (item_index, item) in input.members().enumerate() {
-            if let Some(ref index_var) = step.index {
+            if let Some(index_var) = step.index() {
                 frame.bind(index_var, Value::number(self.arena, item_index as f64));
             }
 
             let mut item_result = self.evaluate(step, item, frame)?;
 
-            if let Some(ref stages) = step.stages {
+            if let Some(stages) = step.stages() {
                 for stage in stages {
                     if let AstKind::Filter(ref expr) = stage.kind {
                         item_result = self.evaluate_filter(expr, item_result, frame)?
@@ -812,7 +812,7 @@ impl<'a> Evaluator<'a> {
                 for (item_index, item) in sorted.members().enumerate() {
                     let tuple = Value::object(self.arena);
                     tuple.insert("@", item);
-                    if let Some(ref index_var) = step.index {
+                    if let Some(index_var) = step.index() {
                         tuple.insert(index_var, Value::number(self.arena, item_index as f64));
                     }
                     result.push(tuple);
@@ -822,7 +822,7 @@ impl<'a> Evaluator<'a> {
                 self.evaluate_sort(step.char_index, sort_terms, tuple_bindings, frame)?
             };
 
-            if let Some(ref stages) = step.stages {
+            if let Some(stages) = step.stages() {
                 result = self.evaluate_stages(stages, result, frame)?;
             }
 
@@ -863,13 +863,13 @@ impl<'a> Evaluator<'a> {
                             output_tuple.insert(key, value);
                         }
                     } else {
-                        if let Some(ref focus_var) = step.focus {
+                        if let Some(focus_var) = step.focus() {
                             output_tuple.insert(focus_var, binding);
                             output_tuple.insert("@", &tuple["@"]);
                         } else {
                             output_tuple.insert("@", binding);
                         }
-                        if let Some(ref index_var) = step.index {
+                        if let Some(index_var) = step.index() {
                             output_tuple
                                 .insert(index_var, Value::number(self.arena, binding_index as f64));
                         }
@@ -880,7 +880,7 @@ impl<'a> Evaluator<'a> {
         }
 
         let mut result = &*result;
-        if let Some(ref stages) = step.stages {
+        if let Some(stages) = step.stages() {
             result = self.evaluate_stages(stages, result, frame)?;
         }
 

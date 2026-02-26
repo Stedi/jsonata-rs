@@ -10,18 +10,25 @@ use ast::*;
 use symbol::Symbol;
 use tokenizer::*;
 
+/// Default maximum parser nesting depth.
+const DEFAULT_MAX_PARSE_DEPTH: usize = 500;
+
 #[derive(Debug)]
 pub struct Parser<'a> {
     pub tokenizer: Tokenizer<'a>,
     pub token: Token,
+    depth: usize,
+    max_depth: usize,
 }
 
 impl<'a> Parser<'a> {
-    fn new(source: &'a str) -> Result<Self> {
+    fn new_with_max_depth(source: &'a str, max_depth: usize) -> Result<Self> {
         let mut tokenizer = Tokenizer::new(source);
         Ok(Self {
             token: tokenizer.next_token()?,
             tokenizer,
+            depth: 0,
+            max_depth,
         })
     }
 
@@ -56,6 +63,11 @@ impl<'a> Parser<'a> {
     }
 
     pub fn expression(&mut self, bp: u32) -> Result<Ast> {
+        self.depth += 1;
+        if self.depth > self.max_depth {
+            return Err(Error::S0217ExpressionTooDeep(self.token.char_index));
+        }
+
         let mut last = self.token.clone();
         self.next_token()?;
 
@@ -67,12 +79,17 @@ impl<'a> Parser<'a> {
             left = last.left_denotation(self, left)?;
         }
 
+        self.depth -= 1;
         Ok(left)
     }
 }
 
 pub fn parse(source: &str) -> Result<Ast> {
-    let mut parser = Parser::new(source)?;
+    parse_with_max_depth(source, DEFAULT_MAX_PARSE_DEPTH)
+}
+
+pub fn parse_with_max_depth(source: &str, max_depth: usize) -> Result<Ast> {
+    let mut parser = Parser::new_with_max_depth(source, max_depth)?;
     let ast = parser.expression(0)?;
     if !matches!(parser.token().kind, TokenKind::End) {
         return Err(Error::S0201SyntaxError(
@@ -273,5 +290,48 @@ mod tests {
     )]
     fn parser_tests(source: &str) {
         parse(source).expect("failed to parse");
+    }
+
+    #[test]
+    fn ast_size_regression() {
+        assert!(
+            std::mem::size_of::<super::ast::Ast>() <= 96,
+            "Ast struct grew beyond 96 bytes: {}",
+            std::mem::size_of::<super::ast::Ast>()
+        );
+    }
+
+    #[test]
+    fn deep_nesting_parses_successfully() {
+        // Generate a deeply nested object constructor: a.{x: a.{x: a.{x: ...}}}
+        // Use a thread with a large stack since both parsing and process_ast recurse.
+        let depth = 200;
+        let result = std::thread::Builder::new()
+            .stack_size(8 * 1024 * 1024)
+            .spawn(move || {
+                let mut expr = String::from("a");
+                for _ in 0..depth {
+                    expr = format!("{}.{{\"x\": {}}}", "a", expr);
+                }
+                parse(&expr)
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+        result.expect("deeply nested expression should parse");
+    }
+
+    #[test]
+    fn depth_limit_returns_error() {
+        // Generate an expression deeper than 10 levels
+        let depth = 20;
+        let mut expr = String::from("a");
+        for _ in 0..depth {
+            expr = format!("{}.{{\"x\": {}}}", "a", expr);
+        }
+        let result = parse_with_max_depth(&expr, 10);
+        assert!(result.is_err(), "Expected depth limit error");
+        let err = result.unwrap_err();
+        assert_eq!(err.code(), "S0217");
     }
 }

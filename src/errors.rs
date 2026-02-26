@@ -25,6 +25,8 @@ pub enum Error {
     S0214ExpectedVarRight(usize, String),
     S0215BindingAfterPredicates(usize),
     S0216BindingAfterSort(usize),
+    // This variant is not present in the JS implementation
+    S0217ExpressionTooDeep(usize),
     S0301EmptyRegex(usize),
     S0302UnterminatedRegex(usize),
     // This variant is not present in the JS implementation
@@ -117,6 +119,7 @@ impl Error {
             Error::S0214ExpectedVarRight(..) => "S0214",
             Error::S0215BindingAfterPredicates(..) => "S0215",
             Error::S0216BindingAfterSort(..) => "S0216",
+            Error::S0217ExpressionTooDeep(..) => "S0217",
             Error::S0301EmptyRegex(..) => "S0301",
             Error::S0302UnterminatedRegex(..) => "S0302",
             Error::S0303InvalidRegex(..) => "S0303",
@@ -220,6 +223,8 @@ impl fmt::Display for Error {
                 write!(f, "{}: A context variable binding must precede any predicates on a step", p),
             S0216BindingAfterSort(ref p) =>
                 write!(f, "{}: A context variable binding must precede the 'order-by' clause on a step", p),
+            S0217ExpressionTooDeep(ref p) =>
+                write!(f, "{}: Expression is too deeply nested", p),
             S0301EmptyRegex(ref p) =>
                 write!(f, "{}: Empty regular expressions are not allowed", p),
             S0302UnterminatedRegex(ref p) =>

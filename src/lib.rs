@@ -32,6 +32,18 @@ impl<'a> JsonAta<'a> {
         })
     }
 
+    pub fn new_with_max_parse_depth(
+        expr: &str,
+        arena: &'a Bump,
+        max_depth: usize,
+    ) -> Result<JsonAta<'a>> {
+        Ok(Self {
+            ast: parser::parse_with_max_depth(expr, max_depth)?,
+            frame: Frame::new(),
+            arena,
+        })
+    }
+
     pub fn ast(&self) -> &Ast {
         &self.ast
     }

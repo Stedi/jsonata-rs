@@ -189,7 +189,8 @@ fn process_path(char_index: usize, lhs: &mut Box<Ast>, rhs: &mut Box<Ast>) -> Re
             steps.append(rest_steps);
         } else {
             // If there are predicates on the rest, they become stages of the step
-            rest.stages = rest.predicates.take();
+            let preds = rest.predicates_mut().take();
+            *rest.stages_mut() = preds;
             steps.push(rest);
         }
 
@@ -241,7 +242,7 @@ fn process_predicate(char_index: usize, lhs: &mut Box<Ast>, rhs: &mut Box<Ast>) 
     };
 
     // Predicates can't follow group-by
-    if node.group_by.is_some() {
+    if node.group_by().is_some() {
         return Err(Error::S0209InvalidPredicate(char_index));
     }
 
@@ -254,17 +255,19 @@ fn process_predicate(char_index: usize, lhs: &mut Box<Ast>, rhs: &mut Box<Ast>) 
 
     // Add the filter to the node. If it's a step in a path, it goes in stages, otherwise in predicates
     if in_path {
-        match node.stages {
-            None => node.stages = Some(vec![filter]),
-            Some(ref mut stages) => {
-                stages.push(filter);
+        let stages = node.stages_mut();
+        match stages {
+            None => *stages = Some(vec![filter]),
+            Some(ref mut s) => {
+                s.push(filter);
             }
         }
     } else {
-        match node.predicates {
-            None => node.predicates = Some(vec![filter]),
-            Some(ref mut predicates) => {
-                predicates.push(filter);
+        let predicates = node.predicates_mut();
+        match predicates {
+            None => *predicates = Some(vec![filter]),
+            Some(ref mut p) => {
+                p.push(filter);
             }
         }
     }
@@ -287,7 +290,7 @@ fn process_focus_bind(
         &mut result
     };
 
-    if step.stages.is_some() || step.predicates.is_some() {
+    if step.stages().is_some() || step.predicates().is_some() {
         return Err(Error::S0215BindingAfterPredicates(char_index));
     }
 
@@ -304,7 +307,7 @@ fn process_focus_bind(
     } else {
         unreachable!()
     };
-    step.focus = Some(focus);
+    *step.focus_mut() = Some(focus);
 
     step.tuple = true;
 
@@ -322,8 +325,9 @@ fn process_index_bind(char_index: usize, lhs: &mut Box<Ast>, rhs: &mut Box<Ast>)
         &mut steps[last_index]
     } else {
         // Convert predicates to stages as this will become the first step in a new path
-        if result.predicates.is_some() {
-            result.stages = result.predicates.take();
+        let preds = result.predicates_mut().take();
+        if preds.is_some() {
+            *result.stages_mut() = preds;
         }
         &mut result
     };
@@ -336,12 +340,11 @@ fn process_index_bind(char_index: usize, lhs: &mut Box<Ast>, rhs: &mut Box<Ast>)
         unreachable!()
     };
 
-    match step.stages {
-        None => step.index = Some(index),
-        Some(ref mut stages) => {
-            let index = Ast::new(AstKind::Index(index), char_index);
-            stages.push(index);
-        }
+    if step.stages().is_some() {
+        let stages = step.stages_mut().as_mut().unwrap();
+        stages.push(Ast::new(AstKind::Index(index), char_index));
+    } else {
+        *step.index_mut() = Some(index);
     }
 
     // Turn it into a path
@@ -356,7 +359,7 @@ fn process_group_by(char_index: usize, lhs: &mut Box<Ast>, rhs: &mut Object) -> 
     let mut result = process_ast(take(lhs))?;
 
     // Can only have a single grouping expression
-    if result.group_by.is_some() {
+    if result.group_by().is_some() {
         return Err(Error::S0210MultipleGroupBy(char_index));
     }
 
@@ -367,7 +370,7 @@ fn process_group_by(char_index: usize, lhs: &mut Box<Ast>, rhs: &mut Object) -> 
         *pair = (process_ast(key)?, process_ast(value)?);
     }
 
-    result.group_by = Some((char_index, take(rhs)));
+    *result.group_by_mut() = Some((char_index, take(rhs)));
 
     Ok(result)
 }
@@ -410,8 +413,9 @@ fn process_lambda(body: &mut Box<Ast>) -> Result<()> {
 }
 
 fn tail_call_optimize(mut expr: Ast) -> Result<Ast> {
+    let has_predicates = expr.predicates().is_some();
     match &mut expr.kind {
-        AstKind::Function { .. } if expr.predicates.is_none() => {
+        AstKind::Function { .. } if !has_predicates => {
             let char_index = expr.char_index;
             let thunk = Ast::new(
                 AstKind::Lambda {
