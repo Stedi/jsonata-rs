@@ -1,0 +1,76 @@
+name: Release
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # Maintain a release PR that bumps the Cargo.toml version and the changelog.
+  # Merging that PR tags the release and publishes the GitHub release.
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-slim
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: release-please-${{ github.ref }}
+      cancel-in-progress: false
+    outputs:
+      release_created: ${{ steps.release_please.outputs.release_created }}
+      tag_name: ${{ steps.release_please.outputs.tag_name }}
+    steps:
+      - name: Generate GitHub token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: generate-token
+        with:
+          # The RELEASE_PLZ_* names predate the move to release-please; they are the
+          # only release credentials this public repository can read.
+          app-id: ${{ secrets.RELEASE_PLZ_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLZ_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Run release-please
+        id: release_please
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # release-please only tags and publishes the GitHub release, so pushing the crate to
+  # crates.io stays an explicit step here.
+  publish-crate:
+    name: Publish to crates.io
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-slim
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - run: |
+          : set $CARGO_HOME
+          echo CARGO_HOME=${CARGO_HOME:-"${{'$HOME/.cargo'}}"} >> $GITHUB_ENV
+        shell: bash
+      - run: |
+          : install rustup if needed
+          if ! command -v rustup &>/dev/null; then
+            curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs | sh -s -- --profile default -y
+            echo "$CARGO_HOME/bin" >> $GITHUB_PATH
+          fi
+        shell: bash
+      - name: Cargo publish
+        run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
