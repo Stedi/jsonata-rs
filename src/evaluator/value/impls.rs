@@ -3,7 +3,7 @@ use std::{
     ops::Index,
 };
 
-use rand::Rng;
+use rand::RngExt;
 
 use super::Value;
 
