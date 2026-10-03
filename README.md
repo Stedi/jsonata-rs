@@ -19,7 +19,7 @@ From the JSONata website:
 - Create user-defined functions
 - Format query results into any JSON output structure
 
-Read the [complete documentation](https://docs.jsonata.org/overview.html), and try it out in Stedi's [JSONata Playground](https://www.stedi.com/jsonata/playground).
+Read the [complete documentation](https://docs.jsonata.org/overview.html), and try it out in the [JSONata Exerciser](https://try.jsonata.org).
 
 ## Getting started
 
