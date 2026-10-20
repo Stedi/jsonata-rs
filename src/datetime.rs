@@ -297,7 +297,7 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
             let year_str = parts[2..].join(" ");
             let year = match year_str.parse::<i32>() {
                 Ok(num) => num,
-                Err(_) => words_to_number(&year_str)? as i32, // If it's word-based (e.g., 'two thousand and seventeen')
+                Err(_) => words_to_number(&year_str)?, // If it's word-based (e.g., 'two thousand and seventeen')
             };
             println!("year {}", year);
 
@@ -530,7 +530,7 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
             let month = month_name_to_int(parts[1])?;
 
             let year_str = parts[2..].join(" ");
-            let year = words_to_number(&year_str.to_lowercase())? as i32;
+            let year = words_to_number(&year_str.to_lowercase())?;
 
             let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
             let time = NaiveTime::from_hms_opt(0, 0, 0)?;
@@ -552,7 +552,7 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
             let month = month_name_to_int(parts[1])?;
 
             let year_str = parts[2..].join(" ");
-            let year = words_to_number(&year_str.to_lowercase())? as i32;
+            let year = words_to_number(&year_str.to_lowercase())?;
 
             let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
             let time = NaiveTime::from_hms_opt(0, 0, 0)?;
@@ -575,7 +575,7 @@ pub fn parse_custom_format(timestamp_str: &str, picture: &str) -> Option<i64> {
             let month = month_name_to_int(parts[1])?; // Handle the month (e.g., "August")
 
             let year_str = parts[2..].join(" ");
-            let year = words_to_number(&year_str.to_lowercase())? as i32;
+            let year = words_to_number(&year_str.to_lowercase())?;
 
             let parsed_date = NaiveDate::from_ymd_opt(year, month, day)?;
             let time = NaiveTime::from_hms_opt(0, 0, 0)?;

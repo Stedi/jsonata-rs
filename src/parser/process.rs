@@ -209,10 +209,10 @@ fn process_path(char_index: usize, lhs: &mut Box<Ast>, rhs: &mut Box<Ast>) -> Re
                 }
 
                 // If the first or last step is an array constructor, it shouldn't be flattened
-                AstKind::Unary(UnaryOp::ArrayConstructor(..)) => {
-                    if step_index == 0 || step_index == last_index {
-                        step.cons_array = true;
-                    }
+                AstKind::Unary(UnaryOp::ArrayConstructor(..))
+                    if step_index == 0 || step_index == last_index =>
+                {
+                    step.cons_array = true;
                 }
 
                 _ => (),
