@@ -25,7 +25,7 @@ jobs:
       tag_name: ${{ steps.release_please.outputs.tag_name }}
     steps:
       - name: Generate GitHub token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         id: generate-token
         with:
           # The RELEASE_PLZ_* names predate the move to release-please; they are the
