@@ -1,0 +1,7 @@
+{
+  "comment": "a value that is not a number is a type error",
+  "expr": "$formatNumber(\"12\", \"0\")",
+  "dataset": null,
+  "bindings": {},
+  "code": "T0410"
+}

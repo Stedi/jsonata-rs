@@ -1,0 +1,7 @@
+{
+  "comment": "zero and negative numbers with an exponent picture terminate (jsonata-js #785)",
+  "expr": "[$formatNumber(0, \"0.0e0\"), $formatNumber(-1234.5678, \"00.000e0\"), $formatNumber(-0.00012, \"0.0e0\")]",
+  "dataset": null,
+  "bindings": {},
+  "result": ["0.0e0", "-12.346e2", "-1.2e-4"]
+}

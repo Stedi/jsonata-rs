@@ -1,0 +1,7 @@
+{
+  "comment": "options override the separators, and a sub-picture for negative numbers is used",
+  "expr": "[$formatNumber(1234567.891, \"#.##0,00\", {\"decimal-separator\": \",\", \"grouping-separator\": \".\"}), $formatNumber(-5, \"0.00;(0.00)\")]",
+  "dataset": null,
+  "bindings": {},
+  "result": ["1.234.567,89", "(5.00)"]
+}
