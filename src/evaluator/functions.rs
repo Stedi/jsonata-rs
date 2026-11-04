@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::datetime::{format_custom_date, parse_custom_format, parse_timezone_offset};
 use crate::evaluator::RegexLiteral;
+use crate::format_number::{format_number, DecimalFormat};
 use crate::parser::expressions::check_balanced_brackets;
 
 use bumpalo::collections::CollectIn;
@@ -1961,6 +1962,59 @@ fn multiply_by_pow10(num: f64, pow: isize) -> Result<f64> {
     num_str
         .parse::<f64>()
         .map_err(|e| Error::D3137Error(e.to_string()))
+}
+
+/// `$formatNumber(number, picture [, options])`: the number as text, laid out by an XPath F&O
+/// 3.1 picture string; `options` overrides the decimal format's symbols by name.
+pub fn fn_format_number<'a>(
+    context: FunctionContext<'a, '_>,
+    args: &[&'a Value<'a>],
+) -> Result<&'a Value<'a>> {
+    max_args!(context, args, 3);
+
+    // Called on a number with only a picture, as in `price.$formatNumber("#,##0.00")`, the
+    // number is the context.
+    let input = if context.input.is_array() && context.input.has_flags(ArrayFlags::WRAPPED) {
+        &context.input[0]
+    } else {
+        context.input
+    };
+    let args: Vec<&'a Value<'a>> = match args.first() {
+        Some(first) if first.is_string() && input.is_number() => {
+            std::iter::once(input).chain(args.iter().copied()).collect()
+        }
+        _ => args.to_vec(),
+    };
+
+    let value = args.first().copied().unwrap_or_else(Value::undefined);
+    if value.is_undefined() {
+        return Ok(Value::undefined());
+    }
+    assert_arg!(value.is_number(), context, 1);
+
+    let picture = args.get(1).copied().unwrap_or_else(Value::undefined);
+    assert_arg!(picture.is_string(), context, 2);
+
+    let mut format = DecimalFormat::default();
+    if let Some(options) = args
+        .get(2)
+        .copied()
+        .filter(|options| !options.is_undefined())
+    {
+        assert_arg!(options.is_object(), context, 3);
+        for (name, option) in options.entries() {
+            assert_arg!(option.is_string(), context, 3);
+            format.set(name, &option.as_str());
+        }
+    }
+
+    let formatted = format_number(
+        value.as_f64(),
+        &picture.as_str(),
+        &format,
+        context.char_index,
+    )?;
+    Ok(Value::string(context.arena, &formatted))
 }
 
 pub fn fn_pad<'a>(

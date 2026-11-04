@@ -1,0 +1,7 @@
+{
+  "comment": "called on a path with only a picture, the number is the context",
+  "expr": "prices.$formatNumber(\"#,##0.00\")",
+  "data": { "prices": [1234.5, 7] },
+  "bindings": {},
+  "result": ["1,234.50", "7.00"]
+}

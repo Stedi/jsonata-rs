@@ -46,6 +46,20 @@ pub enum Error {
     D3060SqrtNegative(usize, String),
     D3061PowUnrepresentable(usize, String, String),
     D3070InvalidDefaultSort(usize),
+    D3080TooManySubPictures(usize),
+    D3081MultipleDecimalSeparators(usize),
+    D3082MultiplePercent(usize),
+    D3083MultiplePerMille(usize),
+    D3084PercentAndPerMille(usize),
+    D3085MantissaWithoutDigit(usize),
+    D3086PassiveBetweenActive(usize),
+    D3087GroupingNextToDecimal(usize),
+    D3088GroupingAtEndOfInteger(usize),
+    D3089AdjacentGroupingSeparators(usize),
+    D3090DigitBeforeOptionalDigit(usize),
+    D3091OptionalDigitBeforeDigit(usize),
+    D3092ExponentWithPercent(usize),
+    D3093InvalidExponent(usize),
     D3141Assert(String),
     D3137Error(String),
     D3138Error(String),
@@ -137,6 +151,20 @@ impl Error {
             Error::D3060SqrtNegative(..) => "D3060",
             Error::D3061PowUnrepresentable(..) => "D3061",
             Error::D3070InvalidDefaultSort(..) => "D3070",
+            Error::D3080TooManySubPictures(..) => "D3080",
+            Error::D3081MultipleDecimalSeparators(..) => "D3081",
+            Error::D3082MultiplePercent(..) => "D3082",
+            Error::D3083MultiplePerMille(..) => "D3083",
+            Error::D3084PercentAndPerMille(..) => "D3084",
+            Error::D3085MantissaWithoutDigit(..) => "D3085",
+            Error::D3086PassiveBetweenActive(..) => "D3086",
+            Error::D3087GroupingNextToDecimal(..) => "D3087",
+            Error::D3088GroupingAtEndOfInteger(..) => "D3088",
+            Error::D3089AdjacentGroupingSeparators(..) => "D3089",
+            Error::D3090DigitBeforeOptionalDigit(..) => "D3090",
+            Error::D3091OptionalDigitBeforeDigit(..) => "D3091",
+            Error::D3092ExponentWithPercent(..) => "D3092",
+            Error::D3093InvalidExponent(..) => "D3093",
             Error::D3133PictureStringNameModifierError(..) => "D3133",
             Error::D3134TooManyTzDigits(..) => "D3134",
             Error::D3135PictureStringNoClosingBracketError(..) => "D3135",
@@ -257,6 +285,34 @@ impl fmt::Display for Error {
                 write!(f, "{}: The power function has resulted in a value that cannot be represented as a JSON number: base={}, exponent={}", p, b, e),
             D3070InvalidDefaultSort(ref p) =>
                 write!(f, "{}: The single argument form of the sort function can only be applied to an array of strings or an array of numbers.  Use the second argument to specify a comparison function", p),
+            D3080TooManySubPictures(ref p) =>
+                write!(f, "{}: The picture string must only contain a maximum of two sub-pictures", p),
+            D3081MultipleDecimalSeparators(ref p) =>
+                write!(f, "{}: The sub-picture must not contain more than one instance of the 'decimal-separator' character", p),
+            D3082MultiplePercent(ref p) =>
+                write!(f, "{}: The sub-picture must not contain more than one instance of the 'percent' character", p),
+            D3083MultiplePerMille(ref p) =>
+                write!(f, "{}: The sub-picture must not contain more than one instance of the 'per-mille' character", p),
+            D3084PercentAndPerMille(ref p) =>
+                write!(f, "{}: The sub-picture must not contain both a 'percent' and a 'per-mille' character", p),
+            D3085MantissaWithoutDigit(ref p) =>
+                write!(f, "{}: The mantissa part of a sub-picture must contain at least one character that is either an 'optional digit character' or a member of the 'decimal digit family'", p),
+            D3086PassiveBetweenActive(ref p) =>
+                write!(f, "{}: The sub-picture must not contain a passive character that is preceded by an active character and that is followed by another active character", p),
+            D3087GroupingNextToDecimal(ref p) =>
+                write!(f, "{}: The sub-picture must not contain a 'grouping-separator' character that appears adjacent to a 'decimal-separator' character", p),
+            D3088GroupingAtEndOfInteger(ref p) =>
+                write!(f, "{}: The sub-picture must not contain a 'grouping-separator' at the end of the integer part", p),
+            D3089AdjacentGroupingSeparators(ref p) =>
+                write!(f, "{}: The sub-picture must not contain two adjacent instances of the 'grouping-separator' character", p),
+            D3090DigitBeforeOptionalDigit(ref p) =>
+                write!(f, "{}: The integer part of the sub-picture must not contain a member of the 'decimal digit family' that is followed by an instance of the 'optional digit character'", p),
+            D3091OptionalDigitBeforeDigit(ref p) =>
+                write!(f, "{}: The fractional part of the sub-picture must not contain an instance of the 'optional digit character' that is followed by a member of the 'decimal digit family'", p),
+            D3092ExponentWithPercent(ref p) =>
+                write!(f, "{}: A sub-picture that contains a 'percent' or 'per-mille' character must not contain a character treated as an 'exponent-separator'", p),
+            D3093InvalidExponent(ref p) =>
+                write!(f, "{}: The exponent part of the sub-picture must comprise only of one or more characters that are members of the 'decimal digit family'", p),
             D3133PictureStringNameModifierError(ref m) =>
                 write!(f, "{}: The 'name' modifier can only be applied to months and days in the date/time picture string, not Y", m),
             D3134TooManyTzDigits(ref m) =>
