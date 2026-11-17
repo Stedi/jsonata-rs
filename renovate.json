@@ -11,7 +11,9 @@
   "rebaseWhen": "conflicted",
   "minimumReleaseAge": "21 days",
   "internalChecksFilter": "strict",
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true
+  },
   "forkProcessing": "enabled",
   "major": {
     "automerge": false,
