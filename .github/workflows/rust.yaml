@@ -77,6 +77,11 @@ jobs:
         run: cargo fmt --all --check
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
+      - uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2.87.2
+        with:
+          tool: cargo-shear@1.14.1
+      - name: Cargo shear
+        run: cargo shear
       - name: Check for diffs
         run: git diff --ignore-space-at-eol --exit-code
 
