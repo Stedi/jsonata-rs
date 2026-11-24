@@ -595,7 +595,10 @@ pub fn fn_substring<'a>(
     let start = if start < 0 { len + start } else { start };
 
     if length.is_undefined() {
-        Ok(Value::string(context.arena, &string[start as usize..]))
+        // `start` counts characters, not bytes, so skip chars rather than slicing the
+        // byte buffer (which panics mid-character or past the end of the string).
+        let substring = string.chars().skip(start as usize).collect::<String>();
+        Ok(Value::string(context.arena, &substring))
     } else {
         assert_arg!(length.is_number(), context, 3);
 
