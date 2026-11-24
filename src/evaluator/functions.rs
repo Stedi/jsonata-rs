@@ -595,7 +595,11 @@ pub fn fn_substring<'a>(
     let start = if start < 0 { len + start } else { start };
 
     if length.is_undefined() {
-        Ok(Value::string(context.arena, &string[start as usize..]))
+        let substring = string
+            .char_indices()
+            .nth(start as usize)
+            .map_or("", |(offset, _)| &string[offset..]);
+        Ok(Value::string(context.arena, substring))
     } else {
         assert_arg!(length.is_number(), context, 3);
 

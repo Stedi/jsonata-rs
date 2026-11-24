@@ -1,0 +1,20 @@
+[
+  {
+    "expr": "$substring(\"Øresund\", 1)",
+    "data": null,
+    "bindings": {},
+    "result": "resund"
+  },
+  {
+    "expr": "$substring(\"São Paulo\", -4)",
+    "data": null,
+    "bindings": {},
+    "result": "aulo"
+  },
+  {
+    "expr": "$substring(\"abc\", 6)",
+    "data": null,
+    "bindings": {},
+    "result": ""
+  }
+]
