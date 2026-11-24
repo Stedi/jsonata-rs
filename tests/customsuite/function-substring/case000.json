@@ -1,20 +1,17 @@
 [
   {
-    "comment": "start counts characters, not bytes, when no length is given",
     "expr": "$substring(\"Øresund\", 1)",
     "data": null,
     "bindings": {},
     "result": "resund"
   },
   {
-    "comment": "negative start on a string with multi-byte characters",
     "expr": "$substring(\"São Paulo\", -4)",
     "data": null,
     "bindings": {},
     "result": "aulo"
   },
   {
-    "comment": "start past the end of the string returns an empty string",
     "expr": "$substring(\"abc\", 6)",
     "data": null,
     "bindings": {},
