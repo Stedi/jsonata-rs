@@ -5,3 +5,4 @@ Cargo.lock
 .nvimrc
 .data
 .idea
+node_modules

@@ -7,7 +7,3 @@ Cargo.lock
 **/Cargo.toml
 .github/**/*.yml
 .github/**/*.yaml
-
-# Written by release-please on every release PR
-.release-please-manifest.json
-CHANGELOG.md
