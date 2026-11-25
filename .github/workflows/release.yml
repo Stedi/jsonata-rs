@@ -19,6 +19,7 @@ jobs:
       cancel-in-progress: false
     outputs:
       version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
     steps:
       - name: Generate GitHub token
         uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
@@ -38,7 +39,6 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26"
-          package-manager-cache: false
 
       - name: Install semantic-release
         working-directory: .github/release
@@ -60,7 +60,7 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: v${{ needs.semantic-release.outputs.version }}
+          ref: ${{ needs.semantic-release.outputs.tag }}
       - run: |
           : set $CARGO_HOME
           echo CARGO_HOME=${CARGO_HOME:-"${{'$HOME/.cargo'}}"} >> $GITHUB_ENV

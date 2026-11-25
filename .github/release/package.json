@@ -9,9 +9,18 @@
     "branches": [
       "main"
     ],
-    "tagFormat": "v${version}",
     "plugins": [
-      "@semantic-release/commit-analyzer",
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "releaseRules": [
+            {
+              "breaking": true,
+              "release": "minor"
+            }
+          ]
+        }
+      ],
       "@semantic-release/release-notes-generator",
       [
         "@semantic-release/github",
@@ -24,7 +33,7 @@
       [
         "@semantic-release/exec",
         {
-          "successCmd": "echo \"version=${nextRelease.version}\" >> \"$GITHUB_OUTPUT\""
+          "successCmd": "echo \"version=${nextRelease.version}\" >> \"$GITHUB_OUTPUT\" && echo \"tag=${nextRelease.gitTag}\" >> \"$GITHUB_OUTPUT\""
         }
       ]
     ]
