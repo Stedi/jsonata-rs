@@ -1,7 +1,7 @@
 use base64::Engine;
 use chrono::{TimeZone, Utc};
 use hashbrown::{DefaultHashBuilder, HashMap};
-use rand::Rng;
+use rand::RngExt;
 use regress::{Range, Regex};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
